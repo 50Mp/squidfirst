@@ -3,8 +3,8 @@ import {Copy, Check, ChevronRight, UserRound} from 'lucide-react';
 import {dateTime, dollars, gameName, navigate, shortId, type Row} from '../api';
 import {Status} from '../components';
 
-interface OrderCardProps {readonly order:Row}
-export function OrderCard({order}:Readonly<OrderCardProps>) {
+interface OrderCardProps {readonly order:Row;readonly selected?:boolean}
+export function OrderCard({order,selected=false}:Readonly<OrderCardProps>) {
  const d=order.details??order.public_snapshot??{};
  const [copyState,setCopyState]=useState('');
  const uid=d.player?.UID??d.player?.['Player ID'];
@@ -12,8 +12,8 @@ export function OrderCard({order}:Readonly<OrderCardProps>) {
   try {await navigator.clipboard.writeText(String(uid));setCopyState('คัดลอก UID แล้ว');}
   catch {setCopyState('คัดลอกไม่สำเร็จ เลือก UID เพื่อคัดลอกเองได้');}
  }
- return <article className="order-card">
-  <button className="order-card-summary" onClick={()=>navigate('/orders/'+order.id)}>
+ return <article className={'order-card'+(selected?' selected':'')} data-order-id={order.id}>
+  <button className="order-card-summary" aria-current={selected?'true':undefined} onClick={()=>navigate('/orders/'+order.id)}>
    <span className="order-card-heading"><strong>#{shortId(order.id)}</strong><Status value={order.status}/></span>
    <small className="muted">{dateTime(order.created_at)}{d.mock&&<b className="mock-tag">MOCK</b>}</small>
    <span className="order-card-product"><span className="game-mark">{d.game_id==='free-fire'?'FF':d.game_id==='mobile-legends-bang-bang'?'ML':'SQ'}</span><span><span className="product-tags"><b>{gameName(d.game_id)}</b><span>โซน: {d.zone?.toUpperCase()??'—'}</span></span><strong>{d.name??'—'}</strong><span className="order-card-customer"><UserRound size={14}/>{order.username??'ลูกค้าทดสอบ'}</span></span><ChevronRight size={18}/></span>

@@ -1,4 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
+import {rememberOrderNavigation} from './order-navigation';
 export type Row=Record<string,any>;
 export class ApiError extends Error{constructor(readonly status:number,readonly serverMessage:string){super(status===409?'ข้อมูลเปลี่ยนแล้ว กรุณาตรวจข้อมูลล่าสุดและลองอีกครั้ง':status===401?'เซสชันหมดอายุ กรุณาเปิด Mini App ใหม่จาก Telegram':status===403?'ไม่มีสิทธิ์ดำเนินการ หรือการยืนยันหมดอายุ':status===400?'ข้อมูลยังไม่ถูกต้อง กรุณาตรวจช่องที่กรอก':status===404?'ไม่พบข้อมูลรายการนี้':'เชื่อมต่อระบบไม่สำเร็จ กรุณาลองอีกครั้ง');}}
 let csrf='';
@@ -23,7 +24,7 @@ export function useResource<T=any>(path:string|null){
   setData(null);load();window.addEventListener('admin:refresh',load);return()=>{active=false;controller?.abort();window.removeEventListener('admin:refresh',load);};
  },[path]);return{data,error,loading};
 }
-export function navigate(path:string){window.location.hash=path;}
+export function navigate(path:string){window.location.hash=rememberOrderNavigation(window.location.hash.slice(1)||'/',path);}
 export const statuses:Record<string,string>={awaiting_payment:'รอชำระเงิน',payment_review:'รอตรวจสลิป',paid:'รอรับงาน',accepted:'รับงานแล้ว',processing:'กำลังเติม',completed:'เติมสำเร็จ',issue:'พบปัญหา',cancelled:'ยกเลิกแล้ว',refunded:'คืนเงินแล้ว'};
 export const actions:Record<string,string>={approve:'ยืนยันรับเงินแล้ว',accept:'รับงาน',start:'เริ่มเติม',complete:'เติมสำเร็จ',reopen:'กลับไปกำลังเติม',issue:'พบปัญหา',resume:'ทำต่อ',cancel:'ยกเลิกออเดอร์',refund:'บันทึกว่าคืนเงินจริงแล้ว'};
 export const gameName=(id:string)=>({'free-fire':'Free Fire','mobile-legends-bang-bang':'Mobile Legends: Bang Bang','pubg-mobile':'PUBG Mobile',roblox:'Roblox'}[id]??id??'—');

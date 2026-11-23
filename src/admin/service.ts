@@ -97,5 +97,14 @@ export class AdminService{
   const data=(await this.db.query('SELECT id,payload,created_at FROM admin_events WHERE id>$1 ORDER BY id LIMIT 200',[after])).rows;return{data,next_cursor:String(data.at(-1)?.id??after)};
  }
  async overview(from?:string,to?:string,includeMock=false){return adminOverview(this.db,from,to,includeMock);}
+ async navigation(adminId:string){
+  const row=(await this.db.query(`SELECT
+   (SELECT COUNT(*)::int FROM orders WHERE status='payment_review' AND COALESCE(public_snapshot->>'mock','false')<>'true') AS pending_review_orders,
+   COUNT(DISTINCT m.room_id)::int AS unread_chat_rooms,COUNT(m.id)::int AS unread_messages
+   FROM customer_chat_messages m
+   LEFT JOIN admin_chat_reads r ON r.room_id=m.room_id AND r.admin_id=$1
+   WHERE m.sender='customer' AND m.visibility='public' AND m.id>COALESCE(r.last_message_id,0)`,[adminId])).rows[0];
+  return{pending_review_orders:row.pending_review_orders,unread_chat_rooms:row.unread_chat_rooms,unread_messages:row.unread_messages};
+ }
  async audit(before?:string){if(before&&!/^\d{1,18}$/.test(before))throw new OrderError(400,'Invalid audit cursor');return{data:(await this.db.query('SELECT id,actor_id,channel,action,entity_type,entity_id,before_data,after_data,created_at FROM admin_audit WHERE ($1::bigint IS NULL OR id<$1) ORDER BY id DESC LIMIT 100',[before??null])).rows};}
 }

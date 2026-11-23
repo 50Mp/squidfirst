@@ -21,6 +21,7 @@ export function adminRoutes(app:FastifyInstance,context:AdminContext){
   return reply.header('Set-Cookie',[`squid_admin_session=${s.token}; Path=/admin; HttpOnly; SameSite=${sameSite}; Max-Age=3600${secure}`,`squid_admin_csrf=${s.csrf}; Path=/; SameSite=${sameSite}; Max-Age=3600${secure}`]).send({actor:s.actor,csrf:s.csrf});
  });
  app.get('/admin/v1/me',{config},async req=>({actor:await auth.authenticate(cookieToken(req))}));
+ app.get('/admin/v1/navigation',{config},async req=>service.navigation((await auth.authenticate(cookieToken(req))).id));
  app.post('/admin/v1/logout',{config},async(req,reply)=>{await auth.logout(cookieToken(req));return reply.header('Set-Cookie',[`squid_admin_session=; Path=/admin; HttpOnly; SameSite=${sameSite}; Max-Age=0${secure}`,`squid_admin_csrf=; Path=/; SameSite=${sameSite}; Max-Age=0${secure}`]).send({ok:true});});
  app.get<{Querystring:NonNullable<Parameters<AdminService['listOrders']>[0]>}>('/admin/v1/orders',{config,schema:{querystring:{type:'object',additionalProperties:false,properties:{active_only:{type:'boolean'},include_mock:{type:'boolean'},status:{type:'string',maxLength:30},customer_id:{type:'string',maxLength:100},game_id:{type:'string',maxLength:100},search:{type:'string',maxLength:100},cursor:{type:'string',maxLength:500},limit:{type:'integer',minimum:1,maximum:50}}}}},req=>service.listOrders(req.query));
  app.get<{Params:{id:string}}>('/admin/v1/orders/:id',{config},req=>service.detail(req.params.id));
