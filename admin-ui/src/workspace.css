@@ -99,6 +99,20 @@ main>*,.main-wrap,.overview-columns>section { min-width:0; }
 .copy-feedback { color:var(--primary); margin-top:8px; font-size:13px; }
 .read-notice { margin-bottom:20px; }
 .fx-settings-fields { border:0; padding:0; margin:0; min-inline-size:0; }
+.fx-example { background:var(--primary-soft); border:1px solid #dbe6ff; border-radius:16px; padding:20px; margin:20px 0; }
+.fx-example h3 { display:flex; align-items:center; gap:8px; color:var(--primary); font-size:1rem; }
+.fx-example p { font-size:.8125rem; color:var(--muted); margin:8px 0 16px; }
+.fx-example .field { margin-bottom:12px; }
+.fx-example-amounts { display:flex; gap:8px; flex-wrap:wrap; }
+.fx-example-amounts button { min-height:44px; min-width:44px; border-radius:10px; padding:8px 12px; background:white; color:var(--primary); font-size:.8125rem; }
+.fx-example-amounts button[aria-pressed="true"] { color:white; background:var(--primary); }
+.fx-example output { display:block; margin-top:16px; font-weight:700; font-size:1.5rem; color:var(--primary); overflow-wrap:anywhere; }
+.chat-message-mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; border:0; border-radius:12px; background:var(--primary-soft); padding:4px; margin:0 0 12px; min-inline-size:0; }
+.chat-message-mode label { position:relative; display:flex; justify-content:center; align-items:center; gap:7px; min-height:44px; padding:8px; border-radius:9px; font-size:.8125rem; color:var(--muted); cursor:pointer; }
+.chat-message-mode input { position:absolute; inset:0; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.chat-message-mode label:has(input:checked) { background:white; box-shadow:var(--card-shadow); color:var(--primary); font-weight:600; }
+.chat-message-mode label:has(input:focus-visible) { outline:2px solid var(--primary); outline-offset:2px; }
+.chat-message-mode:disabled { opacity:.6; }
 .read-notice .error-box { margin-bottom:10px; }
 .read-notice p { margin-bottom:10px; }
 .chat-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:22px; }
