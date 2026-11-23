@@ -98,6 +98,7 @@ main>*,.main-wrap,.overview-columns>section { min-width:0; }
 .order-card-footer button { font-size:13px; padding:10px 12px; }
 .copy-feedback { color:var(--primary); margin-top:8px; font-size:13px; }
 .read-notice { margin-bottom:20px; }
+.fx-settings-fields { border:0; padding:0; margin:0; min-inline-size:0; }
 .read-notice .error-box { margin-bottom:10px; }
 .read-notice p { margin-bottom:10px; }
 .chat-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:22px; }

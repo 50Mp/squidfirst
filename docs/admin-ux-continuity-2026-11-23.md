@@ -17,3 +17,9 @@
 - Independent review identified reload-context, live-pane-scroll and stale-zero issues; targeted fixes were confirmed by the reviewer.
 
 This source delivery does not restart production services, run live payments/supplier transactions, send real Telegram messages or change owner permissions. The backend must be upgraded with the UI for the new authenticated navigation endpoint.
+
+## Read-failure follow-up
+
+FX settings are hidden when their initial read fails. Cached settings remain visible but their controls, preview and save are unavailable during loading or after a failed refresh; retry retains the unsaved draft. The rate-history section also distinguishes failed/unfinished reads from a confirmed empty history.
+
+Customer order history now shows loading or a retryable read error instead of claiming there are no orders. An empty history is rendered only after a successful response. Three browser regression cases cover initial FX failure/recovery, cached FX failure with retained draft, and customer-history failure/recovery. No backend contract changed in this follow-up.
