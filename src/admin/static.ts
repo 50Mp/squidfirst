@@ -1,0 +1,4 @@
+import fastifyStatic from '@fastify/static';import {resolve} from 'node:path';import type {FastifyInstance} from 'fastify';
+export function adminStatic(app:FastifyInstance,root=resolve('admin-ui/dist')){
+ app.register(fastifyStatic,{root,prefix:'/admin-app/',wildcard:true,setHeaders(res,path){res.header('X-Content-Type-Options','nosniff');res.header('Referrer-Policy','no-referrer');res.header('Content-Security-Policy',"default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");res.header('Cache-Control',path.endsWith('.html')?'no-store':'public, max-age=3600');}});
+}

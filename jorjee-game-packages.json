@@ -1,0 +1,186 @@
+{
+  "source": "https://jorjeegamestore.com/",
+  "retrieved_date": "2026-11-18",
+  "timezone": "Asia/Bangkok",
+  "games": [
+    {
+      "game": "Mobile Legends: Bang Bang",
+      "required_fields": [
+        "UID",
+        "Zone ID"
+      ],
+      "packages": [
+        {
+          "name": "50💎 +ໂບນັດ50💎",
+          "note": "ໂບນັດເຕີມຄັ້ງແລກຂອງ ID",
+          "price": 20000,
+          "currency": "LAK"
+        },
+        {
+          "name": "86 💎",
+          "note": "",
+          "price": 31000,
+          "currency": "LAK"
+        },
+        {
+          "name": "Weekly",
+          "note": "",
+          "price": 38000,
+          "currency": "LAK"
+        },
+        {
+          "name": "150💎 +ໂບນັດ150💎",
+          "note": "ໂບນັດເຕີມຄັ້ງແລກຂອງ ID",
+          "price": 58000,
+          "currency": "LAK"
+        },
+        {
+          "name": "172 💎",
+          "note": "",
+          "price": 60000,
+          "currency": "LAK"
+        },
+        {
+          "name": "234💎 + ໂບນັດ 23💎",
+          "note": "",
+          "price": 87000,
+          "currency": "LAK"
+        },
+        {
+          "name": "250💎 +ໂບນັດ250💎",
+          "note": "ໂບນັດເຕີມຄັ້ງແລກຂອງ ID",
+          "price": 92000,
+          "currency": "LAK"
+        },
+        {
+          "name": "500💎 +ໂບນັດ500💎",
+          "note": "ໂບນັດເຕີມຄັ້ງແລກຂອງ ID",
+          "price": 189000,
+          "currency": "LAK"
+        },
+        {
+          "name": "Twilight pass",
+          "note": "",
+          "price": 197000,
+          "currency": "LAK"
+        },
+        {
+          "name": "706 💎",
+          "note": "",
+          "price": 235000,
+          "currency": "LAK"
+        },
+        {
+          "name": "2195 💎",
+          "note": "",
+          "price": 710000,
+          "currency": "LAK"
+        },
+        {
+          "name": "3688 💎",
+          "note": "",
+          "price": 1184000,
+          "currency": "LAK"
+        },
+        {
+          "name": "5532 💎",
+          "note": "",
+          "price": 1788000,
+          "currency": "LAK"
+        },
+        {
+          "name": "9288 💎",
+          "note": "",
+          "price": 2969000,
+          "currency": "LAK"
+        }
+      ]
+    },
+    {
+      "game": "Free Fire (TH)",
+      "required_fields": [
+        "UID"
+      ],
+      "packages": [
+        {
+          "name": "30+3 Diamonds",
+          "note": "",
+          "price": 8000,
+          "currency": "LAK"
+        },
+        {
+          "name": "43 + 25 Diamonds",
+          "note": "",
+          "price": 15000,
+          "currency": "LAK"
+        },
+        {
+          "name": "สมาชิกเพชร รายสัปดาห์เล็ก (+200 Diamonds)",
+          "note": "",
+          "price": 24000,
+          "currency": "LAK"
+        },
+        {
+          "name": "137 + 35 Diamonds",
+          "note": "",
+          "price": 35000,
+          "currency": "LAK"
+        },
+        {
+          "name": "สมาชิกเพชร รายสัปดาห์ (+450 Diamonds)",
+          "note": "",
+          "price": 47000,
+          "currency": "LAK"
+        },
+        {
+          "name": "231 + 79 Diamonds",
+          "note": "",
+          "price": 63000,
+          "currency": "LAK"
+        },
+        {
+          "name": "บูย่าห์พาส",
+          "note": "",
+          "price": 63000,
+          "currency": "LAK"
+        },
+        {
+          "name": "470 + 47 Diamonds",
+          "note": "",
+          "price": 105000,
+          "currency": "LAK"
+        },
+        {
+          "name": "627 + 63 Diamonds",
+          "note": "",
+          "price": 140000,
+          "currency": "LAK"
+        },
+        {
+          "name": "956 + 96 Diamonds",
+          "note": "",
+          "price": 209000,
+          "currency": "LAK"
+        },
+        {
+          "name": "สมาชิกเพชร รายเดือน (+2,600 Diamonds)",
+          "note": "",
+          "price": 209000,
+          "currency": "LAK"
+        },
+        {
+          "name": "1,637 + 164 Diamonds",
+          "note": "",
+          "price": 347000,
+          "currency": "LAK"
+        },
+        {
+          "name": "3,361 + 337 Diamonds",
+          "note": "",
+          "price": 694000,
+          "currency": "LAK"
+        }
+      ]
+    }
+  ]
+}

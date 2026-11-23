@@ -1,0 +1,7 @@
+# Topic icons reflect the player's outstanding orders
+
+User requested order status icons on the player rooms, rather than arbitrary per-player icons. Use the bot's supported topic icon catalog: issue ❗, accepted/processing 🎮, awaiting payment/payment review/paid 📝, completed ✅, cancelled/refunded-only 📁, no orders 💬. Across all owned orders, prioritize issue, then work in progress, then pending. Show completed only when no orders remain open; cancelled/refunded orders do not hide a completed order. Unknown states remain pending.
+
+A separate five-second reconciliation loop updates only active topics for the current bot whose aggregate state or topic ID changed. Persist successful synchronization, and retry failed topics after thirty seconds. Replacing a topic forces icon synchronization even when the aggregate state stays the same. Icon failures must not resend order messages, change order status, or insert customer chat bubbles. Existing actions, ownership rules, and chat contents are preserved.
+
+Verified: 32 tests passed; typecheck and build passed. Restarted the existing API worker; health returns 200. All three current mock player topics received supported icons successfully and the stored synchronized topic IDs match their active topic IDs. Each currently aggregates to pending, so each displays the pending icon. No order states or customer chat messages were changed to demonstrate the icons. No screenshot was taken, per the user's preference.

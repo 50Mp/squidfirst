@@ -1,0 +1,71 @@
+{
+  "projectId": "9946906478898127464",
+  "sourceScreens": [
+    {
+      "id": "286614df1ad24d4596786fa3d4082396",
+      "title": "Mobile v2 — ภาพรวม (Operations Home - อัปเดตล่าสุด)"
+    },
+    {
+      "id": "beb71683567a44ff810445ed3f11e741",
+      "title": "Mobile v2 — ออเดอร์และการจัดส่ง (Quick Action & Batch Actions)"
+    },
+    {
+      "id": "62738ab1d11d4ed389259548d612189d",
+      "title": "Mobile v2 — แชทฝ่ายบริการลูกค้า (ห้องสนทนาล่าสุด)"
+    },
+    {
+      "id": "d7fa95f30ae54fb785c5df37da66b0b5",
+      "title": "Mobile v2 — จัดการร้าน (Store Hub)"
+    }
+  ],
+  "colors": {
+    "primary": "#2563EB",
+    "primaryHover": "#1d4ed8",
+    "primarySoft": "#eff4ff",
+    "background": "#f7f9fc",
+    "surface": "#ffffff",
+    "text": "#172338",
+    "muted": "#5d687c",
+    "border": "#e8edf5"
+  },
+  "sourceDesignColors": {
+    "primary-container": "#2563eb",
+    "primary": "#004ac6",
+    "surface": "#f9f9ff",
+    "surface-container-lowest": "#ffffff"
+  },
+  "overrides": "User explicitly chose #2563EB as primary; use USD and existing API data instead of sample THB analytics. Preserve Thai font fallback for legibility.",
+  "fontFamily": [
+    "Noto Sans Thai",
+    "Leelawadee UI",
+    "system-ui",
+    "sans-serif"
+  ],
+  "sourceFontFamily": [
+    "Inter"
+  ],
+  "spacingPx": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32
+  ],
+  "radiusPx": {
+    "control": 12,
+    "card": 20
+  },
+  "sourceTypeScalePx": {
+    "body": 16,
+    "secondary": 14,
+    "headlineMobile": 24,
+    "headline": 30,
+    "metric": 28
+  },
+  "implementationFiles": [
+    "src/theme.css",
+    "src/workspace.css"
+  ]
+}

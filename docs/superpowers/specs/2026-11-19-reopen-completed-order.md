@@ -1,0 +1,5 @@
+# Return a completed order to processing
+
+User requested a back action after mistakenly marking a top-up complete. Show an explicit "↩️ กลับไปกำลังเติม" control on completed order cards. Only the configured private admin may invoke it. The transactional transition requires completed and payment_verified=true and sets processing without changing payment verification, order identity, customer ownership or receipts. Refunded/cancelled/pending orders cannot be reopened through this action. Deduplicate repeated Telegram updates; record the status audit internally and queue the ordinary status notification into the same customer topic. Reconciliation already recalculates the room icon from all owned orders.
+
+Verification covers completed → processing → completed, repeated events, invalid state transitions including refunded, callback authorization, preserved payment verification, private system messages, and completed-only keyboard visibility. No live mock order state was changed just to demonstrate the feature.

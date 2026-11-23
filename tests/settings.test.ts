@@ -1,0 +1,40 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {openDatabase,Repository} from '../src/database.js';
+import {OrderService} from '../src/orders.js';
+import {OperationsSettings} from '../src/operations/settings.js';
+import {selectLfxUsdRate} from '../src/fx.js';
+import {AdminAuth} from '../src/admin/auth.js';
+import {syncOnce} from '../src/sync.js';
+const actor={id:'owner',telegramUserId:'123',role:'owner' as const,channel:'miniapp' as const};
+test('source toggles affect new quotes and in-flight sync; manual FX mode stays selected',async()=>{
+ const db=await openDatabase('memory:'),repo=new Repository(db),orders=new OrderService(db,()=>repo.effectiveFxRate());
+ try{
+  await repo.init();await orders.init();await new AdminAuth(db,{botToken:'fake',ownerTelegramId:'123',origin:'https://example.com'}).init();
+  const settings=new OperationsSettings(db,repo);await settings.init();
+  const seed=JSON.parse(await readFile(new URL('../jorjee-game-packages.json',import.meta.url),'utf8'));
+  await repo.save(seed.games,'2026-11-18T08:00:00Z','live');
+  await repo.saveFxRate(selectLfxUsdRate([{Time:'15:00-16:00',Label:'USD',Price:'22688.45'}]),'2026-11-18T08:00:00Z');
+  const ff=(await repo.packages('free-fire',false))[0];const product=await orders.publish({name:'Test',game_id:'free-fire',zone:'th',offer_ids:[ff.id],markup_bps:1000});
+  assert.equal((await orders.products()).length,1);
+  const source=(await settings.sources()).find(s=>s.id==='jorjee')!;
+  await settings.setSource(actor,'jorjee',false,source.revision,'disable-jorjee-123');
+  assert.equal((await orders.products()).length,0);
+  let fetched=false;await syncOnce(repo,'jorjee',{now:()=>new Date('2026-11-19T08:00:00Z'),scrape:async()=>{fetched=true;return seed.games;}});assert.equal(fetched,false);
+  await settings.setSource(actor,'jorjee',true,source.revision+1,'enable-jorjee-1234');
+  await assert.rejects(syncOnce(repo,'jorjee',{now:()=>new Date('2026-11-19T08:00:00Z'),scrape:async()=>{await settings.setSource(actor,'jorjee',false,source.revision+2,'disable-inflight-123');return seed.games;}}),/disabled/i);
+  assert.equal((await repo.status()).last_success_at.toISOString(),'2026-11-18T08:00:00.000Z');
+  const fx=await settings.fx();await settings.setFx(actor,{mode:'manual',rate:'22000',revision:fx.revision,idempotency_key:'manual-fx-mode-1234'});
+  await repo.saveFxRate(selectLfxUsdRate([{Time:'15:00-16:00',Label:'USD',Price:'23000'}]),'2026-11-19T08:00:00Z');
+  assert.equal((await repo.effectiveFxRate())?.lak_per_usd,'22000');
+  const manual=await settings.fx();await settings.setFx(actor,{mode:'lfx',revision:manual.revision,idempotency_key:'lfx-mode-switch-123'});
+  assert.equal((await repo.effectiveFxRate())?.lak_per_usd,'23000');
+  const current=await settings.fx();await assert.rejects(settings.setFx(actor,{mode:'manual',rate:'0',revision:current.revision,idempotency_key:'invalid-rate-12345'}),/rate/i);
+  const off=(await settings.sources()).find(s=>s.id==='jorjee')!;await settings.setSource(actor,'jorjee',true,off.revision,'enable-for-order-1234');
+  const order=await orders.create({product_id:product.id,player:{UID:'123456'},token:'x'.repeat(43),idempotency_key:'settings-order-12345'});
+  assert.equal((await orders.adminRead(order.id)).internal_snapshot.lak_per_usd,'23000');
+  await settings.setFx(actor,{mode:'manual',rate:'24000',revision:current.revision,idempotency_key:'next-manual-rate-1234'});
+  assert.equal((await orders.adminRead(order.id)).internal_snapshot.lak_per_usd,'23000','Existing order retains its exchange rate');
+ }finally{await db.close();}
+});

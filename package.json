@@ -1,0 +1,47 @@
+{
+  "name": "jorjee-catalog-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx src/server.ts",
+    "build": "tsc && npm run build:admin",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "db:init": "node --env-file-if-exists=.env --import tsx src/cli.ts init",
+    "seed": "node --env-file-if-exists=.env --import tsx src/cli.ts seed",
+    "sync": "node --env-file-if-exists=.env --import tsx src/cli.ts sync",
+    "fx:sync": "node --env-file-if-exists=.env --import tsx src/cli.ts fx-sync",
+    "fx:reference": "node --env-file-if-exists=.env --import tsx src/cli.ts fx-reference",
+    "worker": "node --env-file-if-exists=.env --import tsx src/cli.ts worker",
+    "test": "node --import tsx --test --test-concurrency=2 tests/*.test.ts",
+    "check": "tsc --noEmit",
+    "build:admin": "vite build admin-ui --config admin-ui/vite.config.ts",
+    "check:admin": "tsc --project admin-ui/tsconfig.json",
+    "dev:admin": "vite --config admin-ui/vite.config.ts admin-ui"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@fastify/rate-limit": "^11.2.2",
+    "@fastify/static": "^10.1.11",
+    "fastify": "^5.12.8",
+    "lucide-react": "^1.76.0",
+    "pg": "^8.23.1",
+    "playwright": "^1.65.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

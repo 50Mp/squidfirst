@@ -1,0 +1,7 @@
+# Telegram order work buttons
+
+User selected two additional order controls: accept work and start topping up. Extend the existing private admin inline keyboard and transactional status actions. Payment confirmation now sets paid, accept sets accepted, and start sets processing. Existing processing orders remain valid. Both new actions require verified payment; completion requires processing. Invalid or repeated transitions cannot regress state, and repeated update IDs remain deduplicated. Status history stays internal and the customer's order API exposes the updated status separately from chat. Issue and manual refund also support the new paid/accepted states. No live test order or Telegram notification is needed.
+
+Verification: extend isolated database and Telegram callback tests for the lifecycle, unauthorized callbacks, duplicate events, unpaid/out-of-sequence actions and chat separation; run tests, typecheck/build, then restart the existing API and verify health.
+
+Result: observed regression tests fail on the old payment-to-processing behavior, then pass with paid/accepted/processing transitions. Full suite: 24 passed; typecheck and build passed. Restarted the existing API/Telegram worker and verified /health returns HTTP 200. Outgoing keyboard was tested through a mocked Telegram transport; no live order or Telegram test message was created. New buttons appear on newly sent order, receipt and status cards; existing Telegram messages retain their previous keyboard.

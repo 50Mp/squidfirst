@@ -1,0 +1,45 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { openDatabase,Repository } from '../src/database.js';
+import { Accounts } from '../src/accounts.js';
+import { CustomerChat } from '../src/customer-chat.js';
+import { OrderService } from '../src/orders.js';
+import { buildApp } from '../src/app.js';
+import { validateSnapshot } from '../src/catalog.js';
+import { selectLfxUsdRate } from '../src/fx.js';
+
+test('login sessions own the same chat and orders across devices; cookie writes enforce origin',async()=>{
+ const db=await openDatabase('memory:');const catalog=new Repository(db);await catalog.init();
+ const accounts=new Accounts(db);await accounts.init();const chat=new CustomerChat(db,accounts);await chat.init();
+ const orders=new OrderService(db,()=>catalog.latestFxRate(),accounts);await orders.init();
+ const app=buildApp(catalog,'admin-secret',orders,undefined,true,accounts,chat);
+ const origin='http://127.0.0.1:3000';
+ try{
+  const seed=JSON.parse(await readFile(new URL('../jorjee-game-packages.json',import.meta.url),'utf8'));await catalog.save(validateSnapshot(seed.games),'2026-11-18T08:00:00Z','live');
+  await catalog.saveFxRate(selectLfxUsdRate([{Time:'15:00-16:00',Label:'USD',Price:'22688.45'}]),'2026-11-18T08:00:00Z');
+  const offer=(await catalog.packages('free-fire',false))[0];const product=await orders.publish({name:'test',game_id:'free-fire',zone:'th',offer_ids:[offer.id],markup_bps:1000});
+  const register=await app.inject({method:'POST',url:'/auth/register',payload:{username:'alice',password:'correct horse battery staple'}});
+  assert.equal(register.statusCode,200,register.body);assert.equal('token' in register.json(),false);
+  const firstCookie=String(register.headers['set-cookie']).split(';')[0];
+  assert.ok(String(register.headers['set-cookie']).includes('HttpOnly'));
+  const denied=await app.inject({method:'POST',url:'/chat/messages',headers:{cookie:firstCookie},payload:{text:'hello',client_message_id:'test-message-1'}});
+  assert.equal(denied.statusCode,403);
+  assert.equal((await app.inject({method:'POST',url:'/chat/messages',headers:{cookie:firstCookie,origin},payload:{text:'hello',client_message_id:'test-message-1'}})).statusCode,200);
+  const create=await app.inject({method:'POST',url:'/orders',headers:{cookie:firstCookie,origin,'idempotency-key':'account-order-request-1'},payload:{product_id:product.id,player:{UID:'123456'}}});
+  assert.equal(create.statusCode,201,create.body);
+  const login=await app.inject({method:'POST',url:'/auth/login',payload:{username:'alice',password:'correct horse battery staple'}});
+  const secondCookie=String(login.headers['set-cookie']).split(';')[0];assert.notEqual(firstCookie,secondCookie);
+  assert.equal((await app.inject({url:`/orders/${create.json().id}`,headers:{cookie:secondCookie}})).statusCode,200);
+  assert.equal((await app.inject({url:'/chat',headers:{cookie:secondCookie}})).json().messages[0].text,'hello');
+  assert.equal((await app.inject({method:'POST',url:`/orders/${create.json().id}/messages`,headers:{cookie:secondCookie,origin},payload:{text:'old route'}})).statusCode,410);
+  const bob=await app.inject({method:'POST',url:'/auth/register',payload:{username:'bob',password:'another correct password'}});
+  const bobCookie=String(bob.headers['set-cookie']).split(';')[0];
+  assert.equal((await app.inject({url:`/orders/${create.json().id}`,headers:{cookie:bobCookie}})).statusCode,404);
+  assert.equal((await app.inject({url:'/chat',headers:{cookie:bobCookie}})).json().messages.length,0);
+  assert.equal((await app.inject({method:'POST',url:'/auth/logout',headers:{cookie:firstCookie,origin}})).statusCode,200);
+  assert.equal((await app.inject({url:'/chat',headers:{cookie:firstCookie}})).statusCode,401);
+  assert.equal((await app.inject({url:'/chat',headers:{cookie:secondCookie}})).statusCode,200);
+  assert.equal((await app.inject({method:'POST',url:'/auth/login',headers:{origin:'https://foreign.test'},payload:{username:'alice',password:'correct horse battery staple'}})).statusCode,403);
+ }finally{await app.close();await db.close();}
+});

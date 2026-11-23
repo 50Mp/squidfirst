@@ -1,0 +1,10 @@
+:root {
+  --primary: #2563EB;
+  --primary-hover: #1d4ed8;
+  --primary-soft: #eff4ff;
+  --workspace-bg: #f7f9fc;
+  --ink: #172338;
+  --secondary-ink: #5d687c;
+  --card-border: #e8edf5;
+  --card-shadow: 0 2px 3px rgb(23 35 56 / 3%);
+}

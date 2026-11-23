@@ -1,0 +1,10 @@
+import type {Database} from '../database.js';import {SOURCES} from '../catalog.js';
+export class OperationsAlerts{
+ constructor(private db:Database){}
+ async init(){await this.db.query('CREATE TABLE IF NOT EXISTS operational_alerts(id TEXT PRIMARY KEY,text TEXT NOT NULL,state TEXT NOT NULL DEFAULT \'pending\',lease_until TIMESTAMPTZ)');}
+ async tick(send:(text:string)=>Promise<unknown>){
+  const enabled=(await this.db.query("SELECT value->>'enabled' AS enabled FROM operational_settings WHERE id='alerts'")).rows[0]?.enabled==='true';if(!enabled)return;
+  for(const source of SOURCES){const row=(await this.db.query('SELECT t.enabled,s.last_success_at,(SELECT r.id FROM sync_runs r WHERE r.source_id=t.source_id AND r.status=\'failed\' AND r.created_at>NOW()-INTERVAL \'24 hours\' ORDER BY r.created_at DESC LIMIT 1) AS failure FROM source_settings t JOIN source_state s ON s.source_id=t.source_id WHERE t.source_id=$1',[source.id])).rows[0];if(!row?.enabled)continue;if(row.failure)await this.db.query('INSERT INTO operational_alerts(id,text) VALUES($1,$2) ON CONFLICT DO NOTHING',['failure:'+row.failure,'⚠️ '+source.name+' ดึงข้อมูลไม่สำเร็จ ตรวจสถานะร้านต้นทางใน Mini App ระบบยังเก็บข้อมูลที่สำเร็จก่อนหน้าไว้']);if(row.last_success_at&&Date.now()-new Date(row.last_success_at).getTime()>26*3600000)await this.db.query('INSERT INTO operational_alerts(id,text) VALUES($1,$2) ON CONFLICT DO NOTHING',['stale:'+source.id+':'+new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}),'🕒 ราคา '+source.name+' ไม่ได้อัปเดตเกิน 26 ชั่วโมง กรุณาตรวจร้านต้นทางก่อนรับออเดอร์']);}
+  const job=(await this.db.query("UPDATE operational_alerts SET lease_until=NOW()+INTERVAL '2 minutes' WHERE id=(SELECT id FROM operational_alerts WHERE state='pending' AND (lease_until IS NULL OR lease_until<NOW()) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING id,text")).rows[0];if(!job)return;try{await send(job.text);await this.db.query("UPDATE operational_alerts SET state='sent',lease_until=NULL WHERE id=$1",[job.id]);}catch{await this.db.query('UPDATE operational_alerts SET lease_until=NOW()+INTERVAL \'5 minutes\' WHERE id=$1',[job.id]);}
+ }
+}
