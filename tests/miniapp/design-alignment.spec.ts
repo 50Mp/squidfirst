@@ -41,3 +41,11 @@ test('pending send prevents typing a draft that its response would clear',async(
  let release!:()=>void;const hold=new Promise<void>(resolve=>release=resolve);await page.route('**/admin/v1/customers/*/chat',async r=>{if(r.request().method()==='POST')await hold;await r.continue();});
  await page.getByLabel('ข้อความแชท').fill('slow reply');await page.getByRole('button',{name:'ส่งข้อความ'}).click();try{await expect(page.getByLabel('ข้อความแชท')).toBeDisabled();}finally{release();}await expect(page.getByLabel('ข้อความแชท')).toBeEnabled();
 });
+
+test('expired browser session locks admin screens and fresh Telegram bootstrap restores access',async({page,context})=>{
+ await open(page);await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeVisible();
+ await context.clearCookies();await page.evaluate(()=>window.dispatchEvent(new Event('admin:refresh')));
+ await expect(page.getByRole('alert')).toContainText('เซสชันหมดอายุ');await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toHaveCount(0);
+ expect((await page.request.get('/admin/v1/orders')).status()).toBe(401);
+ await open(page);await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeVisible();expect((await page.request.get('/admin/v1/orders')).status()).toBe(200);
+});

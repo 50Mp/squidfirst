@@ -8,6 +8,7 @@ Updated 2026-11-24 (Asia/Bangkok). Scope: Tasks 1–4 of the approved Stitch imp
 - Backend tests 54/54 after adding channel parity coverage; browser baseline 44/44; TypeScript and production build passed. Browser fixture uses isolated data, no `.env`, supplier purchase or Telegram transport.
 - Additional channel parity integration test passed: web approve/start/reopen and Telegram accept/complete callbacks share one MOCK record; callback replay preserves revision, formatted bot status matches the admin read, and status actions create no public customer chat messages. This tests callback processing, not live Telegram delivery.
 - Browser reconnect acceptance rerun passed: offline/online transition drains paginated history before marking messages read. Owner also confirmed on a real iPhone that the unsent draft survives network loss and chat loads again after reconnecting.
+- Additional browser session check passed: clearing the browser session cookies triggers real API 401 responses, locks the admin UI, and a fresh signed fixture Telegram bootstrap restores access. This does not substitute for waiting out a physical iPhone session.
 - Responsive checks at 360/390/768/1280/1440; composer at 360x450; receipt image modal, PDF download failure/retry; public/internal separation, per-customer drafts, search persistence, stale reads and recovery.
 - Independent review of d65fc6f..d2057f7 found five Important issues. Each reproduced before repair: private draft visibility after remount; false empty chat on initial failure; lost queue filters; unsaved LFX showing manual arithmetic; typing during pending send losing a subsequent draft. All regression checks and final suites passed after the repair pass. No Critical or Minor findings reported.
 - PostgreSQL Docker container healthy. Local API restarted with backend and UI from the same build; `/health` returned ok.
@@ -26,6 +27,8 @@ Remaining checks:
 - Session reopening after expiration.
 - Explicit safe-area and keyboard behavior across orientations.
 - Web/Telegram status parity on an agreed MOCK order.
+
+Live parity handoff selected existing MOCK Player 1 order `76043ad713`, initially completed at revision 7 with a stored Telegram card. Owner was asked to press back-to-processing on that card and confirm the same order in the Mini App. Result is pending; no live status mutation was performed by the agent. Direct control of the owner's open Telegram tab was unavailable due to a computer-use runtime failure.
 
 Chromium emulation does not verify the remaining physical-device items.
 
