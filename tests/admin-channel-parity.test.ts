@@ -25,8 +25,9 @@ test('web commands and Telegram callbacks share one MOCK lifecycle without publi
   await telegram('accept',1);const accepted=await admin.detail(id);assert.equal(accepted.status,'accepted');
   await telegram('accept',1);assert.equal((await admin.detail(id)).revision,accepted.revision);
   await web('start');await telegram('complete',2);assert.equal((await admin.detail(id)).status,'completed');
+  assert.equal((await orders.pending()).length,1);
   assert.match(formatTelegramOrder(await orders.adminRead(id)),/สถานะ: เติมสำเร็จ/);
-  await web('reopen');assert.equal((await admin.detail(id)).status,'processing');assert.match(formatTelegramOrder(await orders.adminRead(id)),/สถานะ: กำลังเติม/);
+  await web('reopen');assert.equal((await admin.detail(id)).status,'processing');assert.equal((await orders.pending()).length,1);assert.match(formatTelegramOrder(await orders.adminRead(id)),/สถานะ: กำลังเติม/);
   assert.equal((await db.query("SELECT COUNT(*)::int n FROM customer_chat_messages WHERE visibility='public'")).rows[0].n,0);
  }finally{await db.close();}
 });

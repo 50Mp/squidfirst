@@ -48,6 +48,9 @@ export class OrderService {
    `CREATE INDEX IF NOT EXISTS order_messages_order ON order_messages(order_id,id)`,
    `CREATE INDEX IF NOT EXISTS orders_customer_history ON orders(customer_id,created_at DESC,id DESC)`,
    `CREATE INDEX IF NOT EXISTS telegram_outbox_pending ON telegram_outbox(state,next_at)`,
+   `UPDATE telegram_outbox SET state='suppressed',lease_until=NULL
+    WHERE state IN ('pending','sending')
+      AND NOT(kind='status' AND payload->>'status'='completed')`,
   ])await this.db.query(sql);
  }
  private async enqueue(tx:SQL,id:string,kind:string,payload:unknown){await tx.query('INSERT INTO telegram_outbox(id,order_id,kind,payload) VALUES($1,$2,$3,$4)',[randomUUID(),id,kind,JSON.stringify(payload)]);}
@@ -122,7 +125,7 @@ export class OrderService {
    const publicSnapshot={...q.publicQuote,player};
    const internal={source_id:q.offer.source_id,source_url:q.offer.source_url,offer_id:q.offer.id,variant_id:q.offer.variant_id,cost_lak:q.offer.price,fx_rate_id:q.rate.id,lak_per_usd:q.rate.lak_per_usd,markup_bps:q.product.markup_bps,customer_id:customer?.id,chat_room_id:customer?.room_id};
    await tx.query(`INSERT INTO orders(id,product_id,token_hash,request_key,request_hash,status,public_snapshot,internal_snapshot,customer_id) VALUES($1,$2,$3,$4,$5,'awaiting_payment',$6,$7,$8)`,[orderId,input.product_id,hash(input.token),input.idempotency_key,fingerprint,JSON.stringify(publicSnapshot),JSON.stringify(internal),customer?.id??null]);
-   await this.enqueue(tx,orderId,'order',{public:publicSnapshot,internal});return orderId;
+   return orderId;
   });return this.read(id,input.token);
  }
  async read(id:string,token:string){
@@ -136,7 +139,7 @@ export class OrderService {
   await this.db.transaction(async tx=>{await this.owned(tx,id,token,true);
    const count=(await tx.query(`SELECT COUNT(*)::INTEGER AS n FROM order_messages WHERE order_id=$1 AND sender='customer' AND created_at>NOW()-INTERVAL '1 minute'`,[id])).rows[0].n;
    if(count>=10)throw new OrderError(429,'Too many messages');
-   await tx.query(`INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,'customer','public',$2)`,[id,text.trim()]);await this.enqueue(tx,id,'message',{text:text.trim()});
+   await tx.query(`INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,'customer','public',$2)`,[id,text.trim()]);
   });return{accepted:true};
  }
  async receipt(id:string,token:string,file:{id:string;path:string;mime:string;size:number}){
@@ -144,7 +147,7 @@ export class OrderService {
    if(!['awaiting_payment','payment_review','issue'].includes(order.status)||order.payment_verified)throw new OrderError(409,'Receipt not accepted in current status');
    if((await tx.query('SELECT COUNT(*)::INTEGER AS n FROM order_receipts WHERE order_id=$1',[id])).rows[0].n>=5)throw new OrderError(429,'Receipt limit reached');
    await tx.query('INSERT INTO order_receipts(id,order_id,path,mime,size) VALUES($1,$2,$3,$4,$5)',[file.id,id,file.path,file.mime,file.size]);
-   await tx.query("UPDATE orders SET status='payment_review',revision=revision+1 WHERE id=$1",[id]);await this.enqueue(tx,id,'receipt',file);
+   await tx.query("UPDATE orders SET status='payment_review',revision=revision+1 WHERE id=$1",[id]);
   });return{accepted:true};
  }
  async expireAwaitingPayment(now=new Date()):Promise<string[]>{
@@ -195,7 +198,7 @@ export class OrderService {
    else throw new OrderError(409,'Invalid payment/status transition');
    await tx.query('UPDATE orders SET status=$1,payment_verified=$2,revision=revision+1,assigned_admin_id=CASE WHEN $4 THEN $5 ELSE assigned_admin_id END WHERE id=$3',[status,verified,id,action==='accept'&&!!actor,actor?.id??null]);
    await tx.query(`INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,'system','internal',$2)`,[id,`Order status: ${status}`]);
-   await this.enqueue(tx,id,'status',{status});
+   if(status==='completed')await this.enqueue(tx,id,'status',{status});
    if(actor)await appendAudit(tx,actor,{action:'order.'+action,entityType:'order',entityId:id,before:{status:order.status,payment_verified:order.payment_verified,revision:order.revision},after:{status,payment_verified:verified,revision:order.revision+1}});
   });
  }

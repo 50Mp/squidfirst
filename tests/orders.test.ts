@@ -57,6 +57,8 @@ test('manual order snapshots, ownership, idempotency and internal messages are i
   await assert.rejects(service.action(order.id,'reopen','reopen-refunded'),/transition|payment/i);
   const afterActions=await service.read(order.id,token);
   assert.equal(afterActions.messages.some((m:any)=>m.sender==='system'),false,'Order state changes must not become customer chat messages');
-  assert.ok((await service.pending()).length>=3);
+  const pending=await service.pending();
+  assert.equal(pending.length,2);
+  assert.ok(pending.every((job:any)=>job.kind==='status'&&job.payload.status==='completed'));
  }finally{await db.close();}
 });
