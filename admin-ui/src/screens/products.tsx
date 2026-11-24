@@ -44,7 +44,7 @@ export function GamePackages({game}:{game:string}){
  const wide=useWideWorkspace();
  const selected=games.data?.data.find(item=>item.id===game);
  const packages=(data?.data??[]).filter(product=>product.game_id===game);
- if(selected&&!Array.isArray(selected.required_fields))return <SourceGamePackages game={game}/>;
+ if(selected&&!Array.isArray(selected.required_fields))return <SourceGamePackages game={game} gameError={games.error} gameLoading={games.loading}/>;
  return <>
   <PageHeader back={catalogPath} title="แพ็กเกจขาย">
    <button className="primary" disabled={!selected||!data||loading||!!error||!!games.error} onClick={()=>navigate(packageEditorPath(game))}>เพิ่มแพ็กเกจ</button>
@@ -58,18 +58,19 @@ export function GamePackages({game}:{game:string}){
  </>;
 }
 
-function SourceGamePackages({game}:{game:string}){
+function SourceGamePackages({game,gameError,gameLoading}:{game:string;gameError:string;gameLoading:boolean}){
  const {data,error,loading}=useResource<{data:Row[]}>('/catalog?'+new URLSearchParams({game_id:game}));
  const offers=data?.data.filter(offer=>offer.game_id===game)??[];
  return <>
   <PageHeader back={catalogPath} title="แพ็กเกจต้นทาง"/>
+  <ReadNotice error={gameError} cached/>
   <ReadNotice error={error} cached={!!data}/>
-  {loading&&!data?<Loading/>:offers.length>0?<Panel>
+  {(loading&&!data)||(gameLoading&&!offers.length)?<Loading/>:offers.length>0?<Panel>
    {offers.map(offer=><div className="product-row" key={offer.id}>
     <span className="package-title"><PackageIcon game={game} name={offer.name}/><span><strong>{offer.name}</strong><small>{offer.source_id}{offer.zone!=='unspecified'?' · '+offer.zone.toUpperCase():''}</small></span></span>
     <b>{Number(offer.price).toLocaleString('en-US')} LAK</b>
    </div>)}
-  </Panel>:data&&!loading&&!error?<Panel><Empty title="ยังไม่มีแพ็กเกจต้นทาง" text="ยังไม่มีข้อมูลแพ็กเกจของเกมนี้ที่เก็บไว้ในระบบ"/></Panel>:null}
+  </Panel>:data&&!loading&&!error&&!gameLoading&&!gameError?<Panel><Empty title="ยังไม่มีแพ็กเกจต้นทาง" text="ยังไม่มีข้อมูลแพ็กเกจของเกมนี้ที่เก็บไว้ในระบบ"/></Panel>:null}
  </>;
 }
 

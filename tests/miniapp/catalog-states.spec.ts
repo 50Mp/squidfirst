@@ -19,6 +19,14 @@ test('empty source-only game catalog offers a useful state after a successful re
  await page.goto('/admin-app/#/store/products?game=source-empty');await expect(page.getByText('ยังไม่มีแพ็กเกจต้นทาง',{exact:true})).toBeVisible();
  await page.screenshot({path:'artifacts/continuation-20261124/catalog-source-empty.png'});
 });
+test('source-only empty state never hides a failed refresh of game metadata',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await open(page);let failGames=false;
+ await page.route('**/admin/v1/games',r=>r.fulfill(failGames?{status:503,json:{error:'unavailable'}}:{json:{data:[{id:'source-empty',name:'Source game',required_fields:null,zones:[]}]}}));
+ await page.route('**/admin/v1/catalog?game_id=source-empty',r=>r.fulfill({json:{data:[]}}));
+ await page.goto('/admin-app/#/store/products?game=source-empty');await expect(page.getByText('ยังไม่มีแพ็กเกจต้นทาง',{exact:true})).toBeVisible();
+ failGames=true;await page.evaluate(()=>window.dispatchEvent(new Event('admin:refresh')));await expect(page.getByRole('alert')).toBeVisible();await expect(page.getByText('ยังไม่มีแพ็กเกจต้นทาง',{exact:true})).toHaveCount(0);
+ failGames=false;await page.getByRole('button',{name:'ลองโหลดอีกครั้ง'}).click();await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByText('ยังไม่มีแพ็กเกจต้นทาง',{exact:true})).toBeVisible();
+});
 test('mobile catalog keeps TH and ID packages separate and search combines with zone',async({page})=>{
  await page.setViewportSize({width:390,height:844});await open(page);const original=(await (await page.request.get('/admin/v1/products')).json()).data[0];
  const product=(id:string,name:string,zone:string,game_id='free-fire')=>({...original,id,name,zone,game_id});
