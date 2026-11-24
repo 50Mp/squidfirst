@@ -52,3 +52,31 @@ Refund evidence states belong to Task 5; chat archive/case-state/PDF to Task 6; 
 ## Acceptance status
 
 Task 1: reference inspection and ownership matrix complete. Tasks 2-3 require new rendered comparisons and regression evidence. Task 4 requires same-version backend/UI deployment, safe endpoint checks and real-device results; Chromium emulation alone never marks actual Telegram phone acceptance complete.
+
+## Mobile batch · 24 November 2026
+
+Use the following mapping for the current mobile build. The table above remains useful as the earlier release baseline. Reference IDs name screens in Stitch project `9946906478898127464`.
+
+| Route / surface | Current reference or fallback | 390px browser evidence |
+| --- | --- | --- |
+| `/` | Approved iOS overview `d5331699295f43b497b546a572dab403` | `overview.png` |
+| `/orders` | Orders & Fulfillment `79e6a382460b44b69a44a657a39c0666` | `orders.png` and `artifacts/stitch-orders-mobile.png` for differing states |
+| `/orders/:id` and receipt | iOS order detail `ce52fcf417844c76bc6e840aa8cee3aa`, slip viewer `0e7532b364404d7ca7d36022c80c8b61` | `order-detail.png`; image/PDF dialog exercised by the browser suite |
+| `/chats`, `/chats/:id`, `/customers/:id` | Chat list `62738ab1d11d4ed389259548d612189d`, conversation `437e4d2539c544c08294739d89c7d6b8`, profile `cfdddd9508d14eefabde4eb855a78b86` | `chats.png`, `conversation.png`, `customer.png` |
+| `/store` | Store Hub `a9ced3410a704fafb2b7ce477cea473a` | `store.png` |
+| `/store/games`, `/store/products`, `/store/products/new`, `/store/products/:id` | Store Hub navigation and approved light system asset `15836625846179922843`. Product frame `76ae1ad1c351411c8da10782934a09b6` is marked for deletion and is not the acceptance source. | `games.png`, `products.png`, `product-new.png`, `product-editor.png` |
+| `/store/fx`, `/store/audit` | FX Settings `7ebcfbe2add64b5dae320132d7c771e9`, Recent Activity `564601d87a844501a3d32a7e0115b509` | `fx.png`, `audit.png` |
+| `/store/sources`, `/store/pricing`, `/store/settings`, `/store/backups` | Shared grouped forms and panels within the approved light system | `sources.png`, `pricing.png`, `settings.png`, `backups.png` |
+| Auth and bottom tabs | Shared iOS navigation, light system, 56px tab bar plus safe area | Browser auth/session tests and route sweep at 360, 375 and 390px |
+
+Evidence filenames are under `artifacts/mobile-acceptance/` unless a different path is shown. Browser screenshots use isolated fixtures. The localhost preview uses a separate copy of the ten existing anonymized orders. Neither is evidence of a live Telegram delivery or native iPhone keyboard behavior.
+
+### Interactive design preview
+
+Run `node --import tsx tests/miniapp/server.ts --design-preview` and open [Design preview](http://localhost:3103/preview). It uses the local preview bundle under `artifacts/local-preview/admin-ui/dist` and Chromium from Playwright to render a watermarked receipt.
+
+- Orders include all nine implemented status values. `SQ-98417` opens the sample receipt, `SQ-98420` shows fulfillment actions, and `SQ-98412` exercises the real unpaid-expiry sweep. Older completed orders feed the dashboard charts.
+- Products use two simulated suppliers, TH/ID zones, published and draft packages, and the real quotation path. The chat list has four simulated customers with public messages and internal notes.
+- This preview uses an in-memory database, binds only to loopback, and starts neither a Telegram transport nor a supplier sync worker. Restarting restores the initial scenario. Use the hostname `localhost` for the design preview and `127.0.0.1` for the existing orders preview to keep browser sessions separate.
+- [Developer storefront](http://localhost:3103/dev-store/) lists published test products from `/shop/products` and submits to `POST /orders` using the real customer session and order validation. Checkout creates an unpaid order in the same local database. Its status appears in Admin, and the normal 15-minute expiry sweep runs on the test database.
+- Prototype-only capabilities that still need backend work are listed above. Data scenarios cover existing screens and actions.

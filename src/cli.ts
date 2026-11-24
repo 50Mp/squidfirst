@@ -1,15 +1,25 @@
 import { readFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { openDatabase, Repository } from './database.js';
 import { validateSnapshot } from './catalog.js';
 import { intervalMs } from './config.js';
 import { runWorker, syncOnce,syncFxOnce } from './sync.js';
 import { SOURCES } from './catalog.js';
-import { requireSyncWindow } from './schedule.js';
+import { inSyncWindow, nextOpening, requireSyncWindow } from './schedule.js';
 import { selectLfxUsdRate } from './fx.js';
 
 async function main() {
   const command = process.argv[2];
   if (!['init', 'seed', 'sync', 'fx-sync', 'fx-reference', 'worker'].includes(command)) throw new Error('Use init, seed, sync, fx-sync, fx-reference or worker');
+  const waitForWindow = process.argv[4] === '--next-window';
+  if (waitForWindow) {
+    if (command !== 'sync' || !SOURCES.some(source => source.id === process.argv[3])) throw new Error('Use sync <source> --next-window');
+    while (!inSyncWindow(new Date())) {
+      const opening = nextOpening(new Date());
+      console.log('Catalog sync waiting for window', {source:process.argv[3],next_open_at:opening.toISOString()});
+      await delay(Math.max(1,opening.getTime()-Date.now()));
+    }
+  }
   if (command === 'seed') requireSyncWindow();
   const db = await openDatabase(); const repo = new Repository(db);
   try {
@@ -21,7 +31,14 @@ async function main() {
     }
     if (command === 'sync') {
       const source = process.argv[3];
-      if (source) await syncOnce(repo, source);
+      if (source) {
+        let result = await syncOnce(repo, source);
+        while (waitForWindow && result.status==='skipped' && result.reason==='Sync already running' && inSyncWindow(new Date())) {
+          await delay(60000);
+          result = await syncOnce(repo, source);
+        }
+        if (waitForWindow && result.status!=='updated') throw new Error(`Catalog sync skipped: ${result.reason}`);
+      }
       else {
         let failed = false;
         try { await syncFxOnce(repo); } catch (error) { console.error(error); failed=true; }

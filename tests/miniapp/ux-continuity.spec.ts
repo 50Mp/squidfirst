@@ -29,6 +29,11 @@ test('mobile return retains filters, search, scroll and browser history',async({
 
 test('desktop keeps list beside details with one next action and separate destructive controls',async({page})=>{
  await page.setViewportSize({width:1440,height:900});await open(page);await page.goto('/admin-app/#/orders');
+ const table=page.getByRole('table',{name:'รายการออเดอร์ทั้งหมด'});
+ await expect(table.getByRole('columnheader',{name:'เกมและแพ็กเกจ'})).toBeVisible();
+ await table.getByRole('checkbox',{name:'เลือกออเดอร์ทั้งหมดในหน้านี้'}).check();
+ await expect(page.getByText(/เลือกแล้ว \d+ รายการ/)).toBeVisible();
+ await page.getByRole('button',{name:'ล้างการเลือก'}).click();
  await page.locator('.order-card-summary').first().click();
  await expect(page.getByRole('region',{name:'รายการออเดอร์'})).toBeVisible();await expect(page.getByRole('region',{name:'รายละเอียดออเดอร์'})).toBeVisible();
  const list=await page.locator('.order-list-pane').boundingBox(),detail=await page.locator('.order-detail-pane').boundingBox();expect(list!.x+list!.width).toBeLessThanOrEqual(detail!.x);
@@ -36,6 +41,8 @@ test('desktop keeps list beside details with one next action and separate destru
  await expect(page.getByRole('button',{name:'ยกเลิกออเดอร์',exact:true})).toBeHidden();
  await page.getByRole('button',{name:'การดำเนินการอื่น'}).click();
  await expect(page.getByRole('button',{name:'ยกเลิกออเดอร์',exact:true})).toBeVisible();
+ await page.locator('.order-list-pane').evaluate(el=>{el.scrollTop=0;});
+ await page.evaluate(()=>window.scrollTo(0,0));
  await page.screenshot({path:'artifacts/ux-orders-desktop.png'});
 });
 
@@ -47,7 +54,10 @@ test('desktop preserves the live list scroll when changing and closing details',
  const target=page.locator('.order-card-summary').last();await target.scrollIntoViewIfNeeded();
  const saved=await page.locator('.order-list-pane').evaluate(e=>e.scrollTop);expect(saved).toBeGreaterThan(500);
  await target.click();await page.getByRole('button',{name:'ย้อนกลับ',exact:true}).click();
- await expect.poll(()=>page.locator('.order-list-pane').evaluate(e=>e.scrollTop)).toBeGreaterThan(saved-20);
+ await expect.poll(()=>target.evaluate(el=>{
+  const pane=el.closest('.order-list-pane')!.getBoundingClientRect(),row=el.getBoundingClientRect();
+  return row.top>=pane.top&&row.bottom<=pane.bottom;
+ })).toBe(true);
 });
 
 test('navigation badges refresh independently and preserve stale counts on failure',async({page})=>{

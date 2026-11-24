@@ -1,0 +1,28 @@
+:root { color-scheme:light; font:15px/1.55 Inter,"Noto Sans Thai",system-ui,sans-serif; color:#0f172a; background:#f8fafc; }
+* { box-sizing:border-box; }
+body { margin:0; }
+header { display:flex; align-items:center; gap:10px; padding:max(12px,env(safe-area-inset-top)) 16px 12px; background:#fff; }
+.mark { display:grid; place-items:center; width:36px; height:36px; border-radius:12px; background:#2563eb; color:#fff; font-weight:700; }
+.environment { margin-inline-start:auto; padding:4px 8px; border-radius:999px; background:#fffbeb; color:#92400e; font-size:12px; }
+main { max-width:540px; margin:auto; padding:20px 16px max(20px,env(safe-area-inset-bottom)); }
+h1,h2,p,dl { margin:0 0 10px; }
+h1 { font-size:28px; }
+h2 { font-size:18px; }
+.muted,dt { color:#64748b; }
+.panel { padding:16px; margin-block:16px; background:#fff; border-radius:16px; }
+fieldset { min-width:0; padding:0; margin:0; border:0; }
+label { display:grid; gap:5px; margin-block:10px; font-weight:600; }
+input,select,button,.action { min-height:44px; padding:7px 12px; border:0; border-radius:12px; font:inherit; }
+input,select { width:100%; background:#f1f5f9; color:#0f172a; font-size:16px; }
+button,.action { display:inline-flex; align-items:center; justify-content:center; background:#2563eb; color:#fff; font-weight:650; text-decoration:none; cursor:pointer; }
+.secondary { background:#eff6ff; color:#1d4ed8; }
+button:disabled { opacity:.65; cursor:default; }
+button:focus-visible,.action:focus-visible,input:focus-visible,select:focus-visible { outline:3px solid #2563eb; outline-offset:3px; }
+.quote { color:#1d4ed8; font-weight:700; }
+#buy { width:100%; }
+dl>div { display:flex; justify-content:space-between; gap:8px; padding:7px 0; }
+dd { margin:0; text-align:end; overflow-wrap:anywhere; min-width:0; }
+.actions { display:flex; flex-wrap:wrap; gap:8px; }
+#feedback { padding:12px; color:#991b1b; background:#fef2f2; border-radius:12px; }
+[hidden] { display:none!important; }
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }

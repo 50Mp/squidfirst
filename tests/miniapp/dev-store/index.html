@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="th">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <title>Squid First · ร้านทดสอบ</title>
+ <link rel="stylesheet" href="./shop.css">
+ <script type="module" src="./shop.js"></script>
+</head>
+<body>
+ <header><span class="mark" aria-hidden="true">SQ</span><strong>Squid First</strong><span class="environment">ร้านทดสอบ</span></header>
+ <main>
+  <h1>เติมเกม</h1>
+  <p class="muted">เลือกแพ็กเกจแล้วสร้างออเดอร์ในระบบทดสอบโดยไม่ต้องชำระเงินจริง</p>
+  <p id="feedback" role="alert" hidden></p>
+  <section id="receipt" class="panel result" aria-labelledby="result-title" hidden>
+   <h2 id="result-title" tabindex="-1">สร้างออเดอร์แล้ว</h2>
+   <dl><div><dt>เลขออเดอร์</dt><dd id="order-id"></dd></div><div><dt>ยอดตามออเดอร์</dt><dd id="order-price"></dd></div></dl>
+   <p class="muted">ระบบยกเลิกออเดอร์อัตโนมัติหลังรอชำระ 15 นาที</p>
+   <div class="actions"><button id="again" type="button">ซื้อแพ็กเกจอื่น</button><a class="action secondary" id="admin-order" href="/preview" target="_blank" rel="noopener">ดูออเดอร์ใน Admin</a></div>
+  </section>
+  <form id="checkout" class="panel" hidden>
+   <h2>เลือกแพ็กเกจ</h2>
+   <fieldset id="checkout-fields">
+    <legend class="sr-only">ข้อมูลสำหรับออเดอร์</legend>
+    <label>แพ็กเกจ<select id="product" required></select></label>
+    <p id="quote" class="quote" aria-live="polite"></p>
+    <div id="player-fields"></div>
+    <button id="buy" type="submit">ซื้อแบบทดสอบ</button>
+   </fieldset>
+  </form>
+  <p id="loading" role="status">กำลังโหลดแพ็กเกจ…</p>
+ </main>
+</body>
+</html>

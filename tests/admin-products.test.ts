@@ -7,6 +7,15 @@ test('admin products enforce mapping, strategy and publication with default mark
   const offer=(await repo.packages('free-fire',false))[0];const input={name:'Diamonds',game_id:'free-fire',zone:'th',offer_ids:[offer.id],confirmed_equivalent:true,published:true,use_default_markup:true,idempotency_key:'create-product-test-123'};
   const product=await service.createProduct(actor,input);assert.equal((await service.createProduct(actor,input)).id,product.id);assert.equal((await orders.products()).length,1);
   const current=(await service.products()).data.find(p=>p.id===product.id)!;
+  const otherOffer=(await repo.packages('mobile-legends-bang-bang',false))[0];
+  assert.deepEqual((await service.products('pubg-mobile')).data,[]);
+  assert.deepEqual((await service.games()).data.find(g=>g.id==='pubg-mobile')?.zones,[]);
+  await db.query('UPDATE games SET name=$1,required_fields=$2 WHERE id=$3',['Free Fire Test',JSON.stringify(['Player ID']),'free-fire']);
+  await repo.init();
+  assert.equal((await service.games()).data.find(g=>g.id==='free-fire')?.name,'Free Fire Test');
+  assert.deepEqual((await orders.products())[0].required_fields,['Player ID']);
+  await assert.rejects(service.createProduct(actor,{...input,offer_ids:[otherOffer.id],idempotency_key:'cross-game-create-123'}),/game\/zone/i);
+  await assert.rejects(service.updateProduct(actor,product.id,{...current,offer_ids:[otherOffer.id],confirmed_equivalent:true,expected_revision:1,idempotency_key:'cross-game-update-123'}),/game\/zone/i);
   await assert.rejects(service.updateProduct(actor,product.id,{...current,confirmed_equivalent:true,name:'Diamonds',strategy:'fixed_offer',fixed_offer_id:'not-mapped',expected_revision:1,idempotency_key:'invalid-fixed-offer-123'}),/mapped/i);
   await service.updateProduct(actor,product.id,{...current,confirmed_equivalent:true,strategy:'fixed_offer',fixed_offer_id:offer.id,expected_revision:1,idempotency_key:'valid-fixed-offer-1234'});
   assert.equal((await orders.previewProduct(product.id)).available,true);

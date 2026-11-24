@@ -1,6 +1,5 @@
 import { createHash,randomUUID } from 'node:crypto';
 import type { Database,SQL } from './database.js';
-import { GAMES } from './catalog.js';
 import { validateDecimal,type StoredRate } from './fx.js';
 import type { Accounts } from './accounts.js';
 import type {AdminActor} from './admin/contracts.js';
@@ -64,7 +63,9 @@ export class OrderService {
   return this.db.transaction(tx=>this.publishUsing(tx,input));
  }
  async publishUsing(tx:SQL,input:PublishInput){
-  if(!GAMES.some(g=>g.id===input.game_id)||!input.zone||input.zone==='unspecified'||!/^[a-z][a-z0-9-]{1,40}$/.test(input.zone))throw new OrderError(400,'A verified supported zone is required');
+  if(!input.zone||input.zone==='unspecified'||!/^[a-z][a-z0-9-]{1,40}$/.test(input.zone))throw new OrderError(400,'A verified supported zone is required');
+  const game=(await tx.query('SELECT required_fields FROM games WHERE id=$1',[input.game_id])).rows[0];
+  if(!Array.isArray(game?.required_fields))throw new OrderError(400,'A verified supported game is required');
   if(!input.name.trim()||input.name.length>200||input.offer_ids.length<1||input.offer_ids.length>50||new Set(input.offer_ids).size!==input.offer_ids.length||!Number.isInteger(input.markup_bps)||input.markup_bps<0||input.markup_bps>10000)throw new OrderError(400,'Invalid product');
   const id=randomUUID();
    for(const offer of input.offer_ids){const p=(await tx.query('SELECT * FROM packages WHERE id=$1 AND active=TRUE',[offer])).rows[0];if(!p||p.game_id!==input.game_id||p.zone!==input.zone)throw new OrderError(400,'Offer does not support the verified game/zone');}
@@ -74,8 +75,9 @@ export class OrderService {
   return{id};
  }
  private async quote(tx:SQL,id:string,rate:StoredRate|null,allowUnpublished=false,override?:QuoteOverride){
-  const product=(await tx.query('SELECT * FROM shop_products WHERE id=$1 AND (published=TRUE OR $2)',[id,allowUnpublished])).rows[0];
+  const product=(await tx.query('SELECT p.*,g.required_fields FROM shop_products p LEFT JOIN games g ON g.id=p.game_id WHERE p.id=$1 AND (p.published=TRUE OR $2)',[id,allowUnpublished])).rows[0];
   if(!product)throw new OrderError(404,'Product not found');
+  if(!Array.isArray(product.required_fields))throw new OrderError(409,'Game settings unavailable');
   if(override)Object.assign(product,override);
   const game=(await tx.query('SELECT enabled FROM game_settings WHERE game_id=$1',[product.game_id])).rows[0],zone=(await tx.query('SELECT enabled FROM zone_settings WHERE game_id=$1 AND zone=$2',[product.game_id,product.zone])).rows[0];
   if(game?.enabled===false||zone?.enabled===false)throw new OrderError(409,'Game or zone is disabled');
@@ -88,7 +90,7 @@ export class OrderService {
   const numerator=BigInt(offer.price)*scale*100n*BigInt(10000+product.markup_bps),denominator=units*10000n;
   const cents=Number((numerator+denominator-1n)/denominator);
   if(!Number.isSafeInteger(cents)||cents<1||cents>2147483647)throw new OrderError(409,'Invalid selling price');
-  const publicQuote={id:product.id,name:product.name,game_id:product.game_id,zone:product.zone,price_usd:`${Math.floor(cents/100)}.${String(cents%100).padStart(2,'0')}`,currency:'USD',required_fields:GAMES.find(g=>g.id===product.game_id)!.required_fields};
+  const publicQuote={id:product.id,name:product.name,game_id:product.game_id,zone:product.zone,price_usd:`${Math.floor(cents/100)}.${String(cents%100).padStart(2,'0')}`,currency:'USD',required_fields:product.required_fields as string[]};
   return{product,offer,cents,publicQuote,rate};
  }
  async products(){

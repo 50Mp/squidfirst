@@ -4,7 +4,7 @@ import type {CustomerChat} from '../customer-chat.js';
 import type {AdminActor} from './contracts.js';
 import {OperationsSettings} from '../operations/settings.js';
 import {appendAudit} from './audit.js';
-import {GAMES} from '../catalog.js';
+import {SOURCES} from '../catalog.js';
 import {validateDecimal} from '../fx.js';
 import {initAdminEvents} from './events.js';
 import {adminOverview} from './overview.js';
@@ -16,16 +16,21 @@ export class AdminService{
  async listOrders(query:{status?:string;customer_id?:string;game_id?:string;search?:string;cursor?:string;limit?:number;active_only?:boolean;include_mock?:boolean}={}){
   const limit=Math.min(50,Math.max(1,Number(query.limit)||30)),params:any[]=[],conditions:string[]=[];
   const bind=(value:any)=>{params.push(value);return'$'+params.length;};
-  if(query.status)conditions.push('o.status='+bind(query.status));
   if(query.active_only===true)conditions.push("o.status NOT IN ('completed','cancelled','refunded')");
   if(query.include_mock===false)conditions.push("COALESCE(o.public_snapshot->>'mock','false')<>'true'");
   if(query.customer_id)conditions.push('o.customer_id='+bind(query.customer_id));
   if(query.game_id)conditions.push("o.public_snapshot->>'game_id'="+bind(query.game_id));
   if(query.search){const key=bind('%'+query.search.slice(0,100)+'%');conditions.push(`(o.id ILIKE ${key} OR a.username ILIKE ${key} OR o.public_snapshot::text ILIKE ${key})`);}
+  const filters=conditions.length?'WHERE '+conditions.join(' AND '):'';
+  const countParams=params.slice();
+  if(query.status)conditions.push('o.status='+bind(query.status));
   if(query.cursor){let cursor:any;try{cursor=JSON.parse(Buffer.from(query.cursor,'base64url').toString());}catch{throw new OrderError(400,'Invalid cursor');}if(typeof cursor.id!=='string'||cursor.id.length>100||!Number.isFinite(Date.parse(cursor.at)))throw new OrderError(400,'Invalid cursor');conditions.push(`(o.created_at,o.id)<(${bind(cursor.at)}::timestamptz,${bind(cursor.id)})`);}
-  const rows=(await this.db.query(`SELECT o.id,o.status,o.payment_verified,o.revision,o.assigned_admin_id,o.customer_id,a.username,o.public_snapshot AS details,o.created_at FROM orders o LEFT JOIN customer_accounts a ON a.id=o.customer_id ${conditions.length?'WHERE '+conditions.join(' AND '):''} ORDER BY o.created_at DESC,o.id DESC LIMIT ${bind(limit+1)}`,params)).rows;
+  const [{rows},{rows:totals}]=await Promise.all([
+   this.db.query(`SELECT o.id,o.status,o.payment_verified,o.revision,o.assigned_admin_id,o.customer_id,a.username,o.public_snapshot AS details,o.created_at,o.internal_snapshot->>'source_id' AS supplier_id FROM orders o LEFT JOIN customer_accounts a ON a.id=o.customer_id ${conditions.length?'WHERE '+conditions.join(' AND '):''} ORDER BY o.created_at DESC,o.id DESC LIMIT ${bind(limit+1)}`,params),
+   this.db.query(`SELECT o.status,COUNT(*)::int AS count FROM orders o LEFT JOIN customer_accounts a ON a.id=o.customer_id ${filters} GROUP BY o.status`,countParams),
+  ]);
   const data=rows.slice(0,limit),last=data.at(-1);
-  return{data:data.map(r=>({...r,allowed_actions:allowedOrderActions(r.status,r.payment_verified)})),next_cursor:rows.length>limit?Buffer.from(JSON.stringify({at:new Date(last.created_at).toISOString(),id:last.id})).toString('base64url'):null};
+  return{data:data.map(({supplier_id,...r})=>({...r,supplier_name:SOURCES.find(s=>s.id===supplier_id)?.name??null,allowed_actions:allowedOrderActions(r.status,r.payment_verified)})),counts:Object.fromEntries(totals.map(r=>[r.status,r.count])),next_cursor:rows.length>limit?Buffer.from(JSON.stringify({at:new Date(last.created_at).toISOString(),id:last.id})).toString('base64url'):null};
  }
  async detail(id:string){
   const o=await this.orders.adminRead(id),customer=o.customer_id?(await this.db.query('SELECT id,username,disabled,created_at FROM customer_accounts WHERE id=$1',[o.customer_id])).rows[0]:null;
@@ -37,20 +42,38 @@ export class AdminService{
  }
  async receipt(id:string,fileId:string){const file=(await this.db.query('SELECT path,mime FROM order_receipts WHERE order_id=$1 AND id=$2',[id,fileId])).rows[0];if(!file)throw new OrderError(404,'Receipt not found');return file;}
  async customers(search='',adminId=''){
-  return{data:(await this.db.query(`SELECT a.id,a.username,a.disabled,a.created_at,r.id AS room_id,r.topic_state,(SELECT COUNT(*)::int FROM orders o WHERE o.customer_id=a.id) AS order_count,(SELECT m.text FROM customer_chat_messages m WHERE m.room_id=r.id AND m.visibility='public' ORDER BY m.id DESC LIMIT 1) AS last_message,(SELECT COUNT(*)::int FROM customer_chat_messages m WHERE m.room_id=r.id AND m.sender='customer' AND m.id>COALESCE((SELECT last_message_id FROM admin_chat_reads WHERE room_id=r.id AND admin_id=$2),0)) AS unread FROM customer_accounts a JOIN customer_chat_rooms r ON r.customer_id=a.id WHERE a.username ILIKE $1 ORDER BY a.created_at DESC LIMIT 100`,['%'+search.slice(0,100)+'%',adminId])).rows};
+  return{data:(await this.db.query(`SELECT a.id,a.username,a.disabled,a.created_at,r.id AS room_id,r.topic_state,(SELECT COUNT(*)::int FROM orders o WHERE o.customer_id=a.id) AS order_count,latest.text AS last_message,latest.created_at AS last_message_at,(SELECT COUNT(*)::int FROM customer_chat_messages m WHERE m.room_id=r.id AND m.sender='customer' AND m.id>COALESCE((SELECT last_message_id FROM admin_chat_reads WHERE room_id=r.id AND admin_id=$2),0)) AS unread FROM customer_accounts a JOIN customer_chat_rooms r ON r.customer_id=a.id LEFT JOIN LATERAL (SELECT text,created_at FROM customer_chat_messages WHERE room_id=r.id AND visibility='public' ORDER BY id DESC LIMIT 1) latest ON TRUE WHERE a.username ILIKE $1 ORDER BY latest.created_at DESC NULLS LAST,a.created_at DESC LIMIT 100`,['%'+search.slice(0,100)+'%',adminId])).rows};
  }
  async customer(id:string){const room=(await this.db.query('SELECT id FROM customer_chat_rooms WHERE customer_id=$1',[id])).rows[0];if(!room)throw new OrderError(404,'Customer not found');const details=await this.chat.adminCustomer(room.id,'all');return{...details,...await this.listOrders({customer_id:id})};}
- async games(){return{data:await Promise.all(GAMES.map(async game=>{const variants=await this.repo.variants(game.id),zones=[...new Set(variants.map(v=>v.zone))];return{...game,...(await this.db.query('SELECT enabled,revision FROM game_settings WHERE game_id=$1',[game.id])).rows[0]??{enabled:true,revision:1},zones:await Promise.all(zones.map(async zone=>({zone,...(await this.db.query('SELECT enabled,revision FROM zone_settings WHERE game_id=$1 AND zone=$2',[game.id,zone])).rows[0]??{enabled:true,revision:1}})))};}))};}
+ async games(){
+  const {rows}=await this.db.query(`SELECT g.id,g.name,g.required_fields,COALESCE(s.enabled,g.required_fields IS NOT NULL) AS enabled,
+   COALESCE(s.revision,1) AS revision FROM games g LEFT JOIN game_settings s ON s.game_id=g.id ORDER BY g.id`);
+  return {data:await Promise.all(rows.map(async game=>{
+   const {rows:zones}=await this.db.query(`SELECT p.zone,COALESCE(s.enabled,TRUE) AS enabled,COALESCE(s.revision,1) AS revision
+    FROM packages p LEFT JOIN zone_settings s ON s.game_id=p.game_id AND s.zone=p.zone
+    WHERE p.game_id=$1 AND p.active=TRUE GROUP BY p.zone,s.enabled,s.revision ORDER BY p.zone`,[game.id]);
+   return {...game,zones};
+  }))};
+ }
  async setZone(actor:AdminActor,id:string,zone:string,input:{enabled:boolean;expected_revision:number;idempotency_key:string}){
   if(zone==='unspecified'||!(await this.repo.variants(id)).some(v=>v.zone===zone))throw new OrderError(400,'Verified zone required');
   return this.settings.mutate(actor,input.idempotency_key,{id,zone,...input},async tx=>{await tx.query('INSERT INTO zone_settings(game_id,zone) VALUES($1,$2) ON CONFLICT DO NOTHING',[id,zone]);const old=(await tx.query('SELECT enabled,revision FROM zone_settings WHERE game_id=$1 AND zone=$2 FOR UPDATE',[id,zone])).rows[0];if(old.revision!==input.expected_revision)throw new OrderError(409,'Zone changed; refresh');await tx.query('UPDATE zone_settings SET enabled=$1,revision=revision+1 WHERE game_id=$2 AND zone=$3',[input.enabled,id,zone]);await appendAudit(tx,actor,{action:'zone.toggle',entityType:'product',entityId:id+':'+zone,before:old,after:{enabled:input.enabled}});return{revision:old.revision+1};});
  }
  async setGame(actor:AdminActor,id:string,enabled:boolean,revision:number,key:string){
-  if(!GAMES.some(g=>g.id===id)||typeof enabled!=='boolean')throw new OrderError(400,'Invalid game');
+  const game=await this.repo.game(id);
+  if(!game||typeof enabled!=='boolean'||(enabled&&!Array.isArray(game.required_fields)))throw new OrderError(400,'Invalid game');
   return this.settings.mutate(actor,key,{id,enabled,revision},async tx=>{await tx.query('INSERT INTO game_settings(game_id) VALUES($1) ON CONFLICT DO NOTHING',[id]);const old=(await tx.query('SELECT enabled,revision FROM game_settings WHERE game_id=$1 FOR UPDATE',[id])).rows[0];if(old.revision!==revision)throw new OrderError(409,'Game changed; refresh');await tx.query('UPDATE game_settings SET enabled=$1,revision=revision+1 WHERE game_id=$2',[enabled,id]);await appendAudit(tx,actor,{action:'game.toggle',entityType:'product',entityId:id,before:old,after:{enabled}});return{enabled,revision:revision+1};});
  }
- async catalog(game:string,zone?:string){if(!GAMES.some(g=>g.id===game))throw new OrderError(400,'Unknown game');return{data:await this.repo.packages(game,false,zone?{zone}:{})};}
- async products(){const rows=(await this.db.query('SELECT * FROM shop_products ORDER BY name,id LIMIT 200')).rows;const data=[];for(const row of rows){const offers=(await this.db.query('SELECT p.* FROM packages p JOIN shop_product_offers m ON m.offer_id=p.id WHERE m.product_id=$1 ORDER BY p.id',[row.id])).rows;data.push({...row,preview:await this.orders.previewProduct(row.id),offer_ids:offers.map(r=>r.id),offers});}return{data};}
+ async catalog(game:string,zone?:string){if(!await this.repo.game(game))throw new OrderError(400,'Unknown game');return{data:await this.repo.packages(game,false,zone?{zone}:{})};}
+ async products(gameId?:string){
+  const {rows}=await this.db.query('SELECT * FROM shop_products WHERE ($1::text IS NULL OR game_id=$1) ORDER BY name,id LIMIT 200',[gameId??null]);
+  const data=[];
+  for(const row of rows){
+   const offers=(await this.db.query('SELECT p.* FROM packages p JOIN shop_product_offers m ON m.offer_id=p.id WHERE m.product_id=$1 AND p.game_id=$2 AND p.zone=$3 ORDER BY p.id',[row.id,row.game_id,row.zone])).rows;
+   data.push({...row,preview:await this.orders.previewProduct(row.id),offer_ids:offers.map(offer=>offer.id),offers});
+  }
+  return{data};
+ }
  async createProduct(actor:AdminActor,input:any){
   if(input.confirmed_equivalent!==true||!Array.isArray(input.offer_ids)||typeof input.name!=='string'||typeof input.zone!=='string')throw new OrderError(400,'Verify equivalent offers first');
   const defaults=await this.settings.get('pricing');const useDefault=input.use_default_markup!==false,markup=useDefault?defaults.value.default_markup_bps:input.markup_bps;

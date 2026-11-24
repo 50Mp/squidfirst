@@ -15,7 +15,7 @@ npx playwright test
 
 ระบบออเดอร์ สลิป และแชทกับแอดมินผ่าน Telegram: ดู [คู่มือ API และการตั้งค่า](docs/orders-telegram.md) ตอนนี้เป็น backend; ยังไม่มีหน้าเว็บ checkout/chat สำหรับลูกค้า และยังไม่เปิดรับออเดอร์จริง ต้องตั้ง API_KEY เพื่อป้องกันข้อมูลต้นทุนของร้านก่อนเปิดเซิร์ฟเวอร์
 
-ดึงข้อมูลสาธารณะของ Mobile Legends และ Free Fire จาก https://jorjeegamestore.com/ และ https://www.ggxgstore.com/ มาเก็บใน Database ของเรา แล้วเปิด read API โดยไม่ต้องดึงเว็บทุกครั้งที่เรียก API
+ดึงแค็ตตาล็อกสาธารณะทั้งหมดจาก https://jorjeegamestore.com/ และดึง Mobile Legends กับ Free Fire จาก https://www.ggxgstore.com/ มาเก็บใน Database ของเรา แล้วเปิด read API โดยไม่ต้องดึงเว็บทุกครั้งที่เรียก API การซิงก์แค็ตตาล็อกจะเก็บรายการต้นทางและไม่มีผลให้แพ็กเกจเปิดขายอัตโนมัติ
 
 เก็บทุกหน้าโซนของสองเกมที่พบจากรายการเกม GGXG โดยค้นหาลิงก์ใหม่ทุกรอบ แยกข้อมูลด้วย `source_id` + `game_id` + `variant_id` + ชื่อแพ็กเกจ ดังนั้นแม้ร้านเดียวมีสองหน้าสำหรับประเทศเดียวกันก็ไม่ทับกัน เก็บชื่อโซนและชื่อเกมตามร้านไว้ด้วย หากชื่อไม่ได้ระบุประเทศ ใช้ `zone=unspecified` และไม่เดาว่าเป็นโซนไทย
 
@@ -38,6 +38,8 @@ npm run dev
 Database เดิมใน workspace มีข้อมูล 237 แพ็กเกจแล้ว ถ้าใช้ Database ใหม่ว่าง ต้องรอ sync ในช่วงเวลาที่กำหนด หรือใช้ `npm run seed` ในช่วง 15:00–16:00 เพื่อนำเข้า 27 แพ็กเกจเริ่มต้นของ JorJee โดยคงวันที่ข้อมูลเดิม 18 พ.ย. 2026 คำสั่ง seed ปฏิเสธการเขียนทับ live data ตรวจ `data_origin` และ `last_success_at` **แยกร้าน** ที่ `/sources` เพื่อดูว่าได้ข้อมูลสดแล้วหรือยัง
 
 Database อยู่ใน `data/catalog` และยังอยู่หลังปิดแอป **โหมด PGlite ให้เปิดเพียงหนึ่งโปรเซสต่อโฟลเดอร์ Database** หากเปิด API อยู่ ให้ใช้ AUTO_SYNC ในโปรเซสนั้น ปิด API ก่อนสั่ง `seed` หรือ `sync` ผ่าน CLI ห้ามเปิด `worker` พร้อม API บน PGlite เดียวกัน
+
+[`catalog-snapshot.json`](catalog-snapshot.json) เป็นข้อมูลแค็ตตาล็อกที่ส่งออกจาก PostgreSQL ตามเวลา `exported_at` ในไฟล์ มีเกม ราคา LAK สินค้าร้าน และการจับคู่กับแพ็กเกจต้นทาง ใช้สำหรับตรวจรายการและอ้างอิงข้อมูล
 
 ## API
 
@@ -155,5 +157,7 @@ npm run build
 Tests ใช้ PostgreSQL embedded แบบ in-memory จริง ตรวจข้อมูลผิด, upsert, inactive, rollback, seed guard, USD conversion, schedule boundaries และ API ไม่ต้องใช้เว็บต้นทาง ส่วนการทดสอบดึงเว็บจริงใช้ `npm run sync` ในช่วงเวลาที่กำหนดแยกต่างหาก ตัวเลขเรทใน tests เป็น fixture ไม่ใช่เรทที่นำเข้า Database ใช้งานจริง
 
 ดึงเฉพาะร้าน: `npm run sync -- jorjee` หรือ `npm run sync -- ggxg` คำสั่ง `npm run sync` ดึงทุกร้าน หากบางร้านล้มเหลว จะบันทึกร้านที่สำเร็จและคืน exit code 1
+
+ให้กระบวนการรอรอบซิงก์ถัดไปและรันครั้งเดียวด้วย `npm run sync -- jorjee --next-window` โดยเปิดโปรเซสไว้จนกว่าจะซิงก์เสร็จ
 
 อ้างอิง: [Playwright](https://playwright.dev/docs/library), [Fastify](https://fastify.dev/docs/latest/Guides/Getting-Started/), [node-postgres transactions](https://node-postgres.com/features/transactions)

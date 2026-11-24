@@ -1,14 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setTimeout as delay } from 'node:timers/promises';
-import type { Page } from 'playwright';
-import { loadCatalogHome } from '../src/scraper.js';
+import { scrapeCatalog } from '../src/scraper.js';
 
-test('navigation failure also handles rejection of the outstanding response wait', async () => {
-  const page = {
-    waitForResponse: () => new Promise((_, reject) => setTimeout(() => reject(new Error('Context closed')),20)),
-    goto: async () => { throw new Error('Navigation failed'); },
-  } as unknown as Page;
-  await assert.rejects(loadCatalogHome(page), /Navigation failed/);
-  await delay(50);
+test('an unsuccessful JorJee response cannot be imported', async () => {
+  await assert.rejects(scrapeCatalog(undefined, async () => new Response(null,{status:503})), /HTTP 503/);
+  await assert.rejects(scrapeCatalog(undefined, async () => Response.json({success:false,data:[]})), /Invalid JorJee catalog response/);
 });

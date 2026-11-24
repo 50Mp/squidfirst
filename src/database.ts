@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import pg from 'pg';
 import { PGlite } from '@electric-sql/pglite';
-import { GAMES, SOURCE, SOURCES, validateSnapshot, type Snapshot } from './catalog.js';
+import { GAMES, SOURCE, SOURCES, snapshotGameId, validateSnapshot, type Snapshot } from './catalog.js';
 import {initOperationalTables,resolveEffectiveFxRate} from './operations/settings.js';
 import { selectLfxUsdRate, type LfxQuote, type StoredRate } from './fx.js';
 import { requireSyncWindow } from './schedule.js';
@@ -48,6 +48,7 @@ export class Repository {
       `CREATE TABLE IF NOT EXISTS catalog_state (id INTEGER PRIMARY KEY CHECK (id=1), last_success_at TIMESTAMPTZ, data_origin TEXT)`,
       `INSERT INTO catalog_state (id) VALUES (1) ON CONFLICT DO NOTHING`,
       `CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, name TEXT NOT NULL, source_url TEXT NOT NULL)`,
+      `ALTER TABLE games ADD COLUMN IF NOT EXISTS required_fields JSONB`,
       `CREATE TABLE IF NOT EXISTS packages (
         id TEXT PRIMARY KEY, game_id TEXT NOT NULL REFERENCES games(id), name TEXT NOT NULL, note TEXT NOT NULL,
         price INTEGER NOT NULL CHECK (price>0), currency TEXT NOT NULL CHECK (currency='LAK'),
@@ -61,8 +62,12 @@ export class Repository {
       `ALTER TABLE packages ADD COLUMN IF NOT EXISTS zone TEXT NOT NULL DEFAULT 'unspecified'`,
       `ALTER TABLE packages ADD COLUMN IF NOT EXISTS source_game_name TEXT NOT NULL DEFAULT ''`,
       `ALTER TABLE packages ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT 'https://jorjeegamestore.com/'`,
+      `ALTER TABLE packages ADD COLUMN IF NOT EXISTS source_game_id TEXT`,
+      `ALTER TABLE packages ADD COLUMN IF NOT EXISTS source_package_id TEXT`,
       `ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_game_id_name_key`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS packages_source_variant_name ON packages(source_id,game_id,variant_id,name)`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS packages_source_variant_legacy_name ON packages(source_id,game_id,variant_id,name) WHERE source_package_id IS NULL`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS packages_source_variant_supplier_id ON packages(source_id,game_id,variant_id,source_package_id) WHERE source_package_id IS NOT NULL`,
+      `DROP INDEX IF EXISTS packages_source_variant_name`,
       `CREATE TABLE IF NOT EXISTS fx_rates (
         id TEXT PRIMARY KEY, quote JSONB NOT NULL, fetched_at TIMESTAMPTZ NOT NULL,
         CHECK ((fetched_at AT TIME ZONE 'Asia/Vientiane')::time >= TIME '15:00:00' AND
@@ -71,6 +76,11 @@ export class Repository {
       `CREATE TABLE IF NOT EXISTS user_fx_rates (
         id TEXT PRIMARY KEY,quote JSONB NOT NULL,evidence TEXT NOT NULL,provided_at TIMESTAMPTZ NOT NULL)`,
     ]) await this.db.query(sql);
+    for (const game of GAMES) {
+      await this.db.query(`INSERT INTO games(id,name,source_url,required_fields) VALUES($1,$2,$3,$4)
+        ON CONFLICT(id) DO UPDATE SET required_fields=EXCLUDED.required_fields WHERE games.required_fields IS NULL`,
+      [game.id,game.name,SOURCE,JSON.stringify(game.required_fields)]);
+    }
     await initOperationalTables(this.db);
     for (const source of SOURCES) {
       await this.db.query('INSERT INTO sources(id,name,url) VALUES($1,$2,$3) ON CONFLICT DO NOTHING', [source.id,source.name,source.url]);
@@ -81,7 +91,6 @@ export class Repository {
     await this.db.transaction(async tx => {
       const legacy = (await tx.query("SELECT * FROM games WHERE id='free-fire-th'")).rows[0];
       if (!legacy) return;
-      await tx.query(`INSERT INTO games(id,name,source_url) VALUES('free-fire','Free Fire',$1) ON CONFLICT DO NOTHING`, [SOURCE]);
       const rows = (await tx.query("SELECT * FROM packages WHERE game_id='free-fire-th'")).rows;
       for (const row of rows) {
         const id = createHash('sha256').update(`free-fire\0${row.name}`).digest('hex').slice(0,32);
@@ -95,7 +104,7 @@ export class Repository {
   async save(input: Snapshot[], observedAt: string, origin: 'seed' | 'live', sourceId = 'jorjee', beforeCommit?: () => void) {
     const source = SOURCES.find(s => s.id === sourceId);
     if (!source) throw new Error('Unknown source');
-    const snapshot = validateSnapshot(input);
+    const snapshot = validateSnapshot(input,sourceId);
     if (!Number.isFinite(Date.parse(observedAt))) throw new Error('Invalid observation date');
     await this.db.transaction(async tx => {
       const state = (await tx.query('SELECT * FROM source_state WHERE source_id=$1 FOR UPDATE', [sourceId])).rows[0];
@@ -103,21 +112,40 @@ export class Repository {
       if(enabled?.enabled===false)throw new Error('Source disabled before catalog commit');
       if (origin === 'seed' && state.data_origin === 'live') throw new Error('Seed cannot overwrite live data');
       if (state.last_success_at && Date.parse(observedAt) < new Date(state.last_success_at).getTime()) throw new Error('Older snapshot rejected');
-      for (const game of GAMES) {
-        await tx.query(`INSERT INTO games(id,name,source_url) VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name`, [game.id, game.name, SOURCE]);
-        await tx.query('UPDATE packages SET active=FALSE WHERE game_id=$1 AND source_id=$2', [game.id,sourceId]);
-        for (const variant of snapshot.filter(x => x.game === game.name)) {
+      const discovered = snapshot.some(variant => variant.source_game_id);
+      if (discovered) await tx.query('UPDATE packages SET active=FALSE WHERE source_id=$1 AND active=TRUE', [sourceId]);
+      else for (const game of GAMES) await tx.query('UPDATE packages SET active=FALSE WHERE game_id=$1 AND source_id=$2 AND active=TRUE',[game.id,sourceId]);
+
+      const oldIds = new Map<string,string>();
+      if (discovered) {
+        const {rows} = await tx.query('SELECT id,game_id,variant_id,source_package_id FROM packages WHERE source_id=$1 AND source_package_id IS NOT NULL',[sourceId]);
+        for (const row of rows) oldIds.set(`${row.game_id}\0${row.variant_id}\0${row.source_package_id}`,row.id);
+      }
+      const linkedIds = new Set(oldIds.values());
+      for (const variant of snapshot) {
+          const gameId = snapshotGameId(variant.game,variant.source_game_id)!;
           const url = variant.source_url ?? source.url;
           if (new URL(url).origin !== new URL(source.url).origin) throw new Error('Source URL origin mismatch');
+          if (variant.source_game_id) await tx.query(`INSERT INTO games(id,name,source_url) VALUES($1,$2,$3)
+            ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name WHERE games.id LIKE 'jorjee-%' AND games.name IS DISTINCT FROM EXCLUDED.name`,[gameId,variant.game,url]);
+          const counts = new Map<string,number>();
+          for (const p of variant.packages) counts.set(p.name,(counts.get(p.name)??0)+1);
           for (const [position, p] of variant.packages.entries()) {
-            const identity = sourceId === 'jorjee' && variant.variant_id === 'default' ? `${game.id}\0${p.name}` : `${sourceId}\0${game.id}\0${variant.variant_id}\0${p.name}`;
-            const id = createHash('sha256').update(identity).digest('hex').slice(0, 32);
-            await tx.query(`INSERT INTO packages(id,game_id,name,note,price,currency,active,position,observed_at,source_id,variant_id,zone,source_game_name,source_url)
-              VALUES($1,$2,$3,$4,$5,$6,TRUE,$7,$8,$9,$10,$11,$12,$13)
-              ON CONFLICT(id) DO UPDATE SET note=EXCLUDED.note,price=EXCLUDED.price,active=TRUE,position=EXCLUDED.position,observed_at=EXCLUDED.observed_at,zone=EXCLUDED.zone,source_game_name=EXCLUDED.source_game_name,source_url=EXCLUDED.source_url`,
-            [id, game.id, p.name, p.note, p.price, p.currency, position, observedAt,sourceId,variant.variant_id,variant.zone,variant.source_game_name,url]);
+            const scopedKey = `${gameId}\0${variant.variant_id}\0${p.source_package_id ?? p.name}`;
+            const legacy = sourceId === 'jorjee' && variant.variant_id === 'default' && counts.get(p.name) === 1;
+            const sourceIdentity = createHash('sha256').update(`${sourceId}\0${scopedKey}`).digest('hex').slice(0,32);
+            const legacyId = legacy ? createHash('sha256').update(`${gameId}\0${p.name}`).digest('hex').slice(0,32) : sourceIdentity;
+            const id = oldIds.get(scopedKey) ?? (p.source_package_id && linkedIds.has(legacyId) ? sourceIdentity : legacyId);
+            await tx.query(`INSERT INTO packages(id,game_id,name,note,price,currency,active,position,observed_at,source_id,variant_id,zone,source_game_name,source_url,source_game_id,source_package_id)
+              VALUES($1,$2,$3,$4,$5,$6,TRUE,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+              ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,
+                note=CASE WHEN EXCLUDED.source_package_id IS NOT NULL AND EXCLUDED.note='' THEN packages.note ELSE EXCLUDED.note END,
+                price=EXCLUDED.price,active=TRUE,position=EXCLUDED.position,observed_at=EXCLUDED.observed_at,zone=EXCLUDED.zone,
+                source_game_name=EXCLUDED.source_game_name,source_url=EXCLUDED.source_url,
+                source_game_id=COALESCE(EXCLUDED.source_game_id,packages.source_game_id),
+                source_package_id=COALESCE(EXCLUDED.source_package_id,packages.source_package_id)`,
+            [id,gameId,p.name,p.note,p.price,p.currency,position,observedAt,sourceId,variant.variant_id,variant.zone,variant.source_game_name,url,variant.source_game_id??null,p.source_package_id??null]);
           }
-        }
       }
       await tx.query('UPDATE source_state SET last_success_at=$1,data_origin=$2 WHERE source_id=$3', [observedAt, origin,sourceId]);
       beforeCommit?.();
@@ -128,13 +156,14 @@ export class Repository {
   async status(source = 'jorjee') { return (await this.db.query('SELECT source_id,last_success_at,data_origin FROM source_state WHERE source_id=$1', [source])).rows[0]; }
   async sources() { return (await this.db.query('SELECT s.*,st.last_success_at,st.data_origin FROM sources s JOIN source_state st ON st.source_id=s.id ORDER BY s.id')).rows; }
   async games() { return (await this.db.query(`SELECT g.id,g.name,COUNT(p.id)::INTEGER AS package_count FROM games g LEFT JOIN packages p ON p.game_id=g.id AND p.active=TRUE GROUP BY g.id,g.name ORDER BY g.id`)).rows; }
+  async game(id:string) { return (await this.db.query('SELECT id,name,required_fields FROM games WHERE id=$1',[id])).rows[0]; }
   async packages(id: string, includeInactive: boolean, filter: {source?: string; zone?: string; variant?: string} = {}) {
     const params: any[] = [id]; const clauses = ['game_id=$1'];
     if (!includeInactive) clauses.push('active=TRUE');
     for (const [column,value] of [['source_id',filter.source],['zone',filter.zone],['variant_id',filter.variant]]) {
       if (value !== undefined) { params.push(value); clauses.push(`${column}=$${params.length}`); }
     }
-    return (await this.db.query(`SELECT id,game_id,source_id,variant_id,zone,source_game_name,source_url,name,note,price,currency,active,observed_at FROM packages WHERE ${clauses.join(' AND ')} ORDER BY source_id,variant_id,position,id`, params)).rows;
+    return (await this.db.query(`SELECT id,game_id,source_id,variant_id,zone,source_game_name,source_url,source_game_id,source_package_id,name,note,price,currency,active,observed_at FROM packages WHERE ${clauses.join(' AND ')} ORDER BY source_id,variant_id,position,id`, params)).rows;
   }
   async variants(id: string) { return (await this.db.query(`SELECT source_id,variant_id,zone,source_game_name,source_url,COUNT(*)::INTEGER AS package_count FROM packages WHERE game_id=$1 AND active=TRUE GROUP BY source_id,variant_id,zone,source_game_name,source_url ORDER BY source_id,variant_id`, [id])).rows; }
   async saveFxRate(input: LfxQuote, fetchedAt: string, beforeCommit?:()=>void) {

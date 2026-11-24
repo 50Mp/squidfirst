@@ -67,11 +67,15 @@ test('order cards use a game icon instead of a letter abbreviation',async({page}
  await expect(detailMark.locator('svg')).toBeVisible();await expect(detailMark).not.toHaveText(/^(FF|ML)$/);
 });
 test('FX local example follows the selected draft rate without saving it',async({page})=>{
- await page.setViewportSize({width:390,height:844});await open(page);const before=(await (await page.request.get('/admin/v1/fx')).json()).rate;
+ async function savedFx(){
+  const {mode,revision,rate}=await (await page.request.get('/admin/v1/fx')).json();
+  return {mode,revision,id:rate?.id,value:rate?.lak_per_usd};
+ }
+ await page.setViewportSize({width:390,height:844});await open(page);const before=await savedFx();
  await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'กำหนดเอง',exact:false}).check();await page.getByLabel('เรท LAK ต่อ USD').fill('22675.43');
  await expect(page.getByRole('status',{name:'ผลคำนวณตัวอย่าง'})).toContainText('226,754.30 LAK');await page.getByRole('button',{name:'ทดลอง $20',exact:true}).click();
  await expect(page.getByRole('status',{name:'ผลคำนวณตัวอย่าง'})).toContainText('453,508.60 LAK');
- expect((await (await page.request.get('/admin/v1/fx')).json()).rate).toEqual(before);
+ expect(await savedFx()).toEqual(before);
  await page.screenshot({path:'artifacts/fx-example-mobile.png',fullPage:true});
 });
 test('public and internal chat choices are visible and preserve the current draft',async({page})=>{
@@ -108,4 +112,37 @@ test('expired browser session locks admin screens and fresh Telegram bootstrap r
  await expect(page.getByRole('alert')).toContainText('เซสชันหมดอายุ');await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toHaveCount(0);
  expect((await page.request.get('/admin/v1/orders')).status()).toBe(401);
  await open(page);await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeVisible();expect((await page.request.get('/admin/v1/orders')).status()).toBe(200);
+});
+
+test('Stitch cards render the correct order actions and confirm batch requests',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await open(page);
+ const first=(await (await page.request.get('/admin/v1/orders')).json()).data[0];
+ const processing={...first,status:'processing',allowed_actions:['complete','issue'],supplier_name:'JorJee Game Store'};
+ const refunded={...first,id:'reference-refund',status:'refunded',allowed_actions:[]};
+ const review={...first,id:'reference-review',status:'payment_review',allowed_actions:['approve','cancel']};
+ const requests:string[]=[];
+ await page.route('**/admin/v1/orders?**',r=>r.fulfill({json:{data:[refunded,processing,review],counts:{refunded:1,processing:1,payment_review:1}}}));
+ await page.route('**/admin/v1/orders/*/actions',r=>{
+  requests.push(r.request().postDataJSON().action);
+  return r.fulfill({json:{ok:true}});
+ });
+ await page.goto('/admin-app/#/orders');
+ const cards=page.locator('.stitch-order-card');
+ await expect(cards.nth(0).getByRole('button',{name:'ดูใบสำคัญคืนเงิน'})).toBeDisabled();
+ await expect(cards.nth(1).getByRole('button',{name:'แจ้งปัญหา'})).toBeVisible();
+ await expect(cards.nth(1).getByRole('button',{name:'ยืนยันเติมสำเร็จ'})).toBeVisible();
+ await expect(cards.nth(1).locator('.stitch-game-art img')).toHaveJSProperty('complete',true);
+ await cards.nth(1).getByRole('checkbox').check();
+ await expect(page.getByRole('button',{name:'อนุมัติกลุ่ม (1)',exact:true})).toBeDisabled();
+ const fullHeight=await page.evaluate(()=>document.documentElement.scrollHeight);
+ await page.setViewportSize({width:390,height:fullHeight});
+ await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
+ await page.screenshot({path:'artifacts/stitch-orders-mobile.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await cards.nth(1).getByRole('checkbox').uncheck();
+ await cards.nth(2).getByRole('checkbox').check();
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'อนุมัติกลุ่ม (1)',exact:true}).click();
+ await expect.poll(()=>requests).toEqual(['approve']);
 });

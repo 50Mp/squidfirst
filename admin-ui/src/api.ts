@@ -27,8 +27,8 @@ export function useResource<T=any>(path:string|null){
 export function navigate(path:string){window.location.hash=rememberOrderNavigation(window.location.hash.slice(1)||'/',path);}
 export const statuses:Record<string,string>={awaiting_payment:'รอชำระเงิน',payment_review:'รอตรวจสลิป',paid:'รอรับงาน',accepted:'รับงานแล้ว',processing:'กำลังเติม',completed:'เติมสำเร็จ',issue:'พบปัญหา',cancelled:'ยกเลิกแล้ว',refunded:'คืนเงินแล้ว'};
 export const actions:Record<string,string>={approve:'ยืนยันรับเงินแล้ว',accept:'รับงาน',start:'เริ่มเติม',complete:'เติมสำเร็จ',reopen:'กลับไปกำลังเติม',issue:'พบปัญหา',resume:'ทำต่อ',cancel:'ยกเลิกออเดอร์',refund:'บันทึกว่าคืนเงินจริงแล้ว'};
-export const gameName=(id:string)=>({'free-fire':'Free Fire','mobile-legends-bang-bang':'Mobile Legends: Bang Bang','pubg-mobile':'PUBG Mobile',roblox:'Roblox'}[id]??id??'—');
-export const shortId=(id:string)=>id?.replaceAll('-','').slice(-10)??'—';
+export const gameName=(id:string)=>({'free-fire':'Free Fire','mobile-legends-bang-bang':'Mobile Legends: Bang Bang','pubg-mobile':'PUBG',rov:'RoV','genshin-impact':'Genshin Impact',roblox:'Roblox'}[id]??id??'—');
+export const shortId=(id:string)=>/^SQ-\d+$/.test(id)?id:id?.replaceAll('-','').slice(-10)??'—';
 export const dollars=(v:unknown)=>v===null||v===undefined?'—':'$'+String(v);
 export function dateTime(v:unknown){if(!v)return'ยังไม่มีข้อมูล';const d=new Date(String(v));return isNaN(d.getTime())?'—':d.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
 export async function confirmAction(text:string):Promise<boolean>{const tg=(window as any).Telegram?.WebApp;if(tg?.showConfirm)return new Promise(resolve=>tg.showConfirm(text,resolve));return window.confirm(text);}

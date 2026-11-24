@@ -1,5 +1,6 @@
 // Tab-local navigation memory. No credentials or message contents are persisted.
 let list={path:'/orders',windowY:0,paneY:0,focusId:''};
+let desktopAnchor:{id:string;offset:number}|null=null;
 const origins=new Map<string,string>();
 const isList=(path:string)=>path.split('?')[0]==='/orders';
 const detailId=(path:string)=>/^\/orders\/([^/?]+)(?:\?|$)/.exec(path)?.[1];
@@ -18,6 +19,17 @@ export function rememberOrderNavigation(from:string,to:string){
   list={path:from,windowY:window.scrollY,paneY:document.querySelector('.order-list-pane')?.scrollTop??0,focusId:id??list.focusId};
  }
  if(isList(to)&&to!==list.path)list={path:to,windowY:0,paneY:0,focusId:''};
+ if(isList(to)){
+  desktopAnchor=null;
+  if(detailId(from)&&to===list.path){
+   const pane=document.querySelector<HTMLElement>('.desktop-order-workspace .order-list-pane');
+   const top=pane?.getBoundingClientRect().top;
+   if(pane&&top!==undefined){
+    const first=Array.from(pane.querySelectorAll<HTMLElement>('tr[data-order-id]')).find(row=>row.getBoundingClientRect().bottom>top);
+    if(first?.dataset.orderId)desktopAnchor={id:first.dataset.orderId,offset:first.getBoundingClientRect().top-top};
+   }
+  }
+ }
  if(id&&!detailId(from)){
   const origin=isList(from)||/^\/(chats|customers)\/[^/?]+$/.test(from)||from==='/'?from:list.path;
   origins.set(id,origin);
@@ -33,7 +45,12 @@ export function rememberOrderNavigation(from:string,to:string){
 export function restoreOrderList(path:string){
  if(path!==list.path)return;
  const pane=document.querySelector('.order-list-pane');
- if(pane)pane.scrollTop=list.paneY;
+ if(pane){
+  const anchor=desktopAnchor&&pane.querySelector<HTMLElement>('tr[data-order-id="'+CSS.escape(desktopAnchor.id)+'"]');
+  if(anchor&&desktopAnchor)pane.scrollTop+=anchor.getBoundingClientRect().top-pane.getBoundingClientRect().top-desktopAnchor.offset;
+  else pane.scrollTop=list.paneY;
+  desktopAnchor=null;
+ }
  window.scrollTo({top:list.windowY,behavior:'instant'});
  if(list.focusId){
   const target=pane?.querySelector<HTMLButtonElement>('[data-order-id="'+CSS.escape(list.focusId)+'"] .order-card-summary');

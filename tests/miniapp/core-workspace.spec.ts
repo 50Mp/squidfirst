@@ -7,10 +7,11 @@ async function openWorkspace(page:Page) {
  fields.set('hash',createHmac('sha256',secret).update([...fields.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('\n')).digest('hex'));
  await page.route('https://telegram.org/js/**',r=>r.fulfill({contentType:'application/javascript',body:`window.Telegram={WebApp:{initData:${JSON.stringify(fields.toString())},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){}}}`}));
  await page.goto('/admin-app/');
- await expect(page.getByRole('heading',{name:'วันนี้ร้านเป็นอย่างไร'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'ภาพรวม'})).toBeVisible();
 }
 
 test('queue shortcuts open filtered orders and cards expose zone and UID',async({page,context})=>{
+ await page.setViewportSize({width:390,height:844});
  await context.grantPermissions(['clipboard-read','clipboard-write']);
  await openWorkspace(page);
  await page.getByRole('switch',{name:'รวมรายการทดสอบ'}).click();
@@ -33,7 +34,7 @@ test('failed orders read offers retry without claiming an empty result',async({p
  await expect(page.getByText('ยังไม่มีออเดอร์',{exact:true})).toHaveCount(0);
  fail=false;await page.getByRole('button',{name:'ลองโหลดอีกครั้ง'}).click();
  const orders=(await (await page.request.get('/admin/v1/orders')).json()).data;
- await expect(page.locator('.order-card')).toHaveCount(orders.length);
+ await expect(page.locator('[data-order-id]')).toHaveCount(orders.length);
 });
 
 test('chat unread filter and grouped store links use existing routes',async({page})=>{
@@ -41,7 +42,12 @@ test('chat unread filter and grouped store links use existing routes',async({pag
  await page.getByRole('button',{name:/^ยังไม่อ่าน/}).click();
  const unread=(await (await page.request.get('/admin/v1/customers')).json()).data.filter((c:{unread:number})=>c.unread>0);
  await expect(page.locator('.chat-card')).toHaveCount(unread.length);
- await page.locator('.chat-card').first().getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();
+ const card=page.locator('.chat-card').first();
+ await expect(card.getByRole('button')).toHaveCount(1);
+ await card.getByRole('link',{name:'รายละเอียดลูกค้า '+unread[0].username}).click();
+ await expect(page).toHaveURL(/#\/customers\//);
+ await page.goBack();
+ await card.getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();
  await expect(page.getByRole('heading',{name:unread[0].username,exact:true})).toBeVisible();
  await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeHidden();
  await page.goto('/admin-app/#/store');

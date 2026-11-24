@@ -27,7 +27,7 @@ for(const screen of [
  {route:'audit',api:'audit',ready:'',empty:'ยังไม่มีประวัติในหน้านี้'},
  {route:'backups',api:'backups',ready:'สร้างสำเนาสำรอง',empty:'ยังไม่มีสำเนาสำรอง'},
  {route:'games',api:'games',ready:'',empty:''},
- {route:'products',api:'products',ready:'เพิ่มแพ็กเกจ',empty:'ยังไม่มีแพ็กเกจขาย'},
+ {route:'products?game=free-fire',api:'products?game_id=free-fire',ready:'เพิ่มแพ็กเกจ',empty:''},
  {route:'sources',api:'sources',ready:'ดึงข้อมูลตอนนี้',empty:''},
 ])test(screen.route+' initial read failure has retry, no false empty result or writable defaults',async({page})=>{
  await open(page);let fail=true;

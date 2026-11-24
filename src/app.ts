@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
-import { GAMES, SOURCES } from './catalog.js';
+import { SOURCES } from './catalog.js';
 import type { Repository } from './database.js';
 import { lakToUsd,rateMetadata } from './fx.js';
 import { inSyncWindow,nextOpening,SYNC_TIMEZONE,SYNC_WINDOW } from './schedule.js';
@@ -46,7 +46,7 @@ export function buildApp(repo: Repository, apiKey?: string,orders?:OrderService,
   app.get('/games', async () => ({ data: await repo.games() }));
   app.get<{ Params: { id: string } }>('/games/:id/variants', async (request, reply) => {
     const id = request.params.id === 'free-fire-th' ? 'free-fire' : request.params.id;
-    if (!GAMES.some(g => g.id === id)) return reply.code(404).send({ error: 'Game not found' });
+    if (!await repo.game(id)) return reply.code(404).send({ error: 'Game not found' });
     return { data: await repo.variants(id) };
   });
   app.get<{ Params: { id: string }; Querystring: { includeInactive?: string; source?: string; zone?: string; variant?: string; currency?: 'USD' | 'LAK' } }>('/games/:id/packages', {
@@ -62,7 +62,7 @@ export function buildApp(repo: Repository, apiKey?: string,orders?:OrderService,
     },
   }, async (request, reply) => {
     const id = request.params.id === 'free-fire-th' ? 'free-fire' : request.params.id;
-    if (!GAMES.some(g => g.id === id)) return reply.code(404).send({ error: 'Game not found' });
+    if (!await repo.game(id)) return reply.code(404).send({ error: 'Game not found' });
     const zone = request.query.zone ?? (request.params.id === 'free-fire-th' ? 'th' : undefined);
     const rows = await repo.packages(id, request.query.includeInactive === 'true', { source: request.query.source, zone, variant: request.query.variant });
     const currency = request.query.currency ?? 'USD';

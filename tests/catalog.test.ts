@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { validateSnapshot, parsePackageText, GAMES } from '../src/catalog.js';
 import { openDatabase, Repository } from '../src/database.js';
 import { buildApp } from '../src/app.js';
+import * as jorjee from '../src/scraper.js';
 
 const seed = JSON.parse(await readFile(new URL('../jorjee-game-packages.json', import.meta.url), 'utf8'));
 const snapshot = () => validateSnapshot(seed.games);
@@ -49,6 +50,38 @@ test('database persists atomically, updates without duplicates, deactivates miss
     assert.equal((await repo.packages(GAMES[0].id, false)).length, 13);
     await assert.rejects(repo.save(snapshot().slice(0, 1), new Date().toISOString(), 'live'));
     assert.equal((await repo.packages(GAMES[0].id, false)).length, 13);
+  } finally { await db.close(); }
+});
+
+test('JorJee discovery imports additional games and duplicate display names while retaining legacy package identifiers', async () => {
+  const sourceGames = seed.games.map((entry: any, index: number) => ({
+    id: String(index + 1).padStart(24, '0'), name: entry.game,
+    packages: entry.packages.map((pack: any, position: number) => ({
+      id: String(100 + index * 100 + position).padStart(24, '0'), name: pack.name, price: pack.price,
+    })),
+  }));
+  const gameId = '000000000000000000000003';
+  const discovered = {id:gameId,name:'Example Game (TH)',packages:[
+    {id:'000000000000000000001001',name:'Same name',price:8000},
+    {id:'000000000000000000001002',name:'Same name',price:9000},
+  ]};
+  const db = await openDatabase('memory:');
+  const repo = new Repository(db);
+  try {
+    await repo.init();
+    await repo.save(snapshot(), '2026-11-18T01:00:00Z', 'live');
+    const legacy = (await repo.packages('free-fire',false))[0];
+    const imported = jorjee.parseJorjeeCatalog({success:true,data:[...sourceGames,discovered]});
+    await repo.save(imported, '2026-11-18T02:00:00Z', 'live');
+    const rows = await repo.packages('jorjee-'+gameId,false);
+    assert.equal(rows.length,2);
+    assert.notEqual(rows[0].id,rows[1].id);
+    assert.ok(rows.every(row=>row.zone==='th'));
+    assert.equal((await repo.packages('free-fire',false))[0].id,legacy.id);
+    assert.equal((await repo.game('jorjee-'+gameId)).required_fields,null);
+    const refreshed = {...discovered,packages:[{...discovered.packages[1],name:'Renamed'}]};
+    await repo.save(jorjee.parseJorjeeCatalog({success:true,data:[...sourceGames,refreshed]}), '2026-11-18T03:00:00Z', 'live');
+    assert.deepEqual((await repo.packages('jorjee-'+gameId,false)).map(row=>row.id),[rows[1].id]);
   } finally { await db.close(); }
 });
 
