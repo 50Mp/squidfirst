@@ -6,6 +6,46 @@ async function open(page:Page){
  await page.route('https://telegram.org/js/**',r=>r.fulfill({contentType:'application/javascript',body:`window.Telegram={WebApp:{initData:${JSON.stringify(p.toString())},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){}}}`}));
  await page.goto('/admin-app/');await expect(page.locator('main h1')).toBeVisible();
 }
+test('approved iOS light design system is the final UI contract',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await open(page);
+ const contract=await page.evaluate(()=>{
+  const root=getComputedStyle(document.documentElement),body=getComputedStyle(document.body);
+  const panel=document.querySelector<HTMLElement>('.panel')!;
+  const panelStyle=getComputedStyle(panel);
+  const navigation=document.querySelector<HTMLElement>('.sidebar nav button')!;
+  const navigationRect=navigation.getBoundingClientRect();
+  return {
+   tokens:{
+    primary:root.getPropertyValue('--sf-primary').trim().toLowerCase(),
+    primaryPressed:root.getPropertyValue('--sf-primary-pressed').trim().toLowerCase(),
+    canvas:root.getPropertyValue('--sf-canvas').trim().toLowerCase(),
+    surface:root.getPropertyValue('--sf-surface').trim().toLowerCase(),
+    quietSurface:root.getPropertyValue('--sf-surface-quiet').trim().toLowerCase(),
+    text:root.getPropertyValue('--sf-text').trim().toLowerCase(),
+    secondaryText:root.getPropertyValue('--sf-text-secondary').trim().toLowerCase(),
+    separator:root.getPropertyValue('--sf-separator').trim().toLowerCase(),
+    success:root.getPropertyValue('--sf-success').trim().toLowerCase(),
+    warning:root.getPropertyValue('--sf-warning').trim().toLowerCase(),
+    danger:root.getPropertyValue('--sf-danger').trim().toLowerCase(),
+   },
+   colorScheme:root.colorScheme,
+   bodyBackground:body.backgroundColor,
+   panel:{background:panelStyle.backgroundColor,borderWidth:panelStyle.borderTopWidth,shadow:panelStyle.boxShadow,radius:panelStyle.borderRadius},
+   navigation:{width:navigationRect.width,height:navigationRect.height},
+   overflows:document.documentElement.scrollWidth>document.documentElement.clientWidth,
+  };
+ });
+ expect(contract.tokens).toEqual({
+  primary:'#2563eb',primaryPressed:'#1d4ed8',canvas:'#f8fafc',surface:'#fff',quietSurface:'#f1f5f9',
+  text:'#0f172a',secondaryText:'#64748b',separator:'#e2e8f0',success:'#10b981',warning:'#f59e0b',danger:'#dc2626',
+ });
+ expect(contract.colorScheme).toBe('light');
+ expect(contract.bodyBackground).toBe('rgb(248, 250, 252)');
+ expect(contract.panel).toEqual({background:'rgb(255, 255, 255)',borderWidth:'0px',shadow:'none',radius:'16px'});
+ expect(contract.navigation.width).toBeGreaterThanOrEqual(44);
+ expect(contract.navigation.height).toBeGreaterThanOrEqual(44);
+ expect(contract.overflows).toBe(false);
+});
 test('FX local example follows the selected draft rate without saving it',async({page})=>{
  await page.setViewportSize({width:390,height:844});await open(page);const before=(await (await page.request.get('/admin/v1/fx')).json()).rate;
  await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'กำหนดเอง',exact:false}).check();await page.getByLabel('เรท LAK ต่อ USD').fill('22675.43');
