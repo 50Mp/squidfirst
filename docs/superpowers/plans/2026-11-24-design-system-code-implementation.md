@@ -86,7 +86,7 @@ Run `npx playwright test tests/miniapp/design-alignment.spec.ts`. Expected: all 
 
 Run `npm run check && npm run check:admin`. Expected: both pass.
 
-- [ ] **Step 2: Run backend/unit regression** — 52/54 passed; the pre-existing backup and PGlite persistence filesystem tests fail in isolation and were not changed by this UI batch.
+- [ ] **Step 2: Run backend/unit regression** — 52/54 passed; the backend-only backup and PGlite persistence filesystem tests fail in isolation and are outside the UI surface changed by this batch.
 
 Run `npm test`. Expected: all tests pass.
 
