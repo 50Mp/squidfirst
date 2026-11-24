@@ -25,10 +25,11 @@ Owner subsequently confirmed the iPhone offline/reconnect scenario: the draft re
 Remaining checks:
 
 - Session reopening after expiration.
-- Explicit safe-area and keyboard behavior across orientations.
 - Web/Telegram status parity on an agreed MOCK order.
 
-Live parity handoff selected existing MOCK Player 1 order `76043ad713`, initially completed at revision 7 with a stored Telegram card. Owner was asked to press back-to-processing on that card and confirm the same order in the Mini App. Result is pending; no live status mutation was performed by the agent. Direct control of the owner's open Telegram tab was unavailable due to a computer-use runtime failure.
+Owner confirmed portrait/landscape checks on iPhone: send/status controls and text remain visible and usable in chat and orders. Device model and OS version remain unspecified.
+
+Live parity handoff selected existing MOCK Player 1 order `76043ad713`. Owner reports matching processing status in Telegram and Mini App. Independent database check found the record completed at revision 7, with audit entries for reopen followed by complete, both attributed to `miniapp` (2026-11-24 05:16:40/42 UTC). The observed record therefore supports Mini App reopen/complete but does not independently confirm a live Telegram callback. Clarification of which surface was used is pending; this live callback acceptance remains open. No live status mutation was performed by the agent. Direct control of the owner's open Telegram tab was unavailable due to a computer-use runtime failure.
 
 Chromium emulation does not verify the remaining physical-device items.
 
