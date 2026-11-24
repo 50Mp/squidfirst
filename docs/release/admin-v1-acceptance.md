@@ -7,7 +7,7 @@ Updated 2026-11-24 (Asia/Bangkok). Scope: Tasks 1–4 of the approved Stitch imp
 - Current canonical screen/route/API mapping: [screen-route-matrix](../design/screen-route-matrix.md). Primary color #2563EB; existing owner/manual workflow retained.
 - Backend tests 54/54 after adding channel parity coverage; browser baseline 44/44; TypeScript and production build passed. Browser fixture uses isolated data, no `.env`, supplier purchase or Telegram transport.
 - Additional channel parity integration test passed: web approve/start/reopen and Telegram accept/complete callbacks share one MOCK record; callback replay preserves revision, formatted bot status matches the admin read, and status actions create no public customer chat messages. This tests callback processing, not live Telegram delivery.
-- Browser reconnect acceptance rerun passed: offline/online transition drains paginated history before marking messages read. Physical iPhone reconnect results remain pending.
+- Browser reconnect acceptance rerun passed: offline/online transition drains paginated history before marking messages read. Owner also confirmed on a real iPhone that the unsent draft survives network loss and chat loads again after reconnecting.
 - Responsive checks at 360/390/768/1280/1440; composer at 360x450; receipt image modal, PDF download failure/retry; public/internal separation, per-customer drafts, search persistence, stale reads and recovery.
 - Independent review of d65fc6f..d2057f7 found five Important issues. Each reproduced before repair: private draft visibility after remount; false empty chat on initial failure; lost queue filters; unsaved LFX showing manual arithmetic; typing during pending send losing a subsequent draft. All regression checks and final suites passed after the repair pass. No Critical or Minor findings reported.
 - PostgreSQL Docker container healthy. Local API restarted with backend and UI from the same build; `/health` returned ok.
@@ -19,11 +19,13 @@ Updated 2026-11-24 (Asia/Bangkok). Scope: Tasks 1–4 of the approved Stitch imp
 
 Owner reported on 2026-11-24: Mini App opens on iPhone; send control, back navigation and slip viewer work. This is user-reported physical-device evidence. Exact model, iOS and Telegram versions were not supplied. It does not establish message delivery or status parity.
 
+Owner subsequently confirmed the iPhone offline/reconnect scenario: the draft remains and chat returns after restoring connectivity. This completes that physical-device check; it does not establish retry delivery semantics for a message sent while offline.
+
 Remaining checks:
 
 - Session reopening after expiration.
 - Explicit safe-area and keyboard behavior across orientations.
-- Network loss/reconnect and Web/Telegram status parity on an agreed MOCK order.
+- Web/Telegram status parity on an agreed MOCK order.
 
 Chromium emulation does not verify the remaining physical-device items.
 
