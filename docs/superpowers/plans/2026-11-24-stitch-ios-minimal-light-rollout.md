@@ -39,19 +39,19 @@
 - Consumes: approved DESIGN.md and Stitch project ID `9946906478898127464`
 - Produces: a Stitch design-system `assetId` recorded in `.stitch/metadata.json`
 
-- [ ] **Step 1: Upload the approved DESIGN.md**
+- [x] **Step 1: Upload the approved DESIGN.md**
 
 Use `upload_design_md` with `projectId: 9946906478898127464` and the base64-encoded UTF-8 file.
 
-- [ ] **Step 2: Create the design-system asset**
+- [x] **Step 2: Create the design-system asset**
 
 Use the returned screen instance `id` and `sourceScreen` with `create_design_system_from_design_md`, setting `deviceType: MOBILE`.
 
-- [ ] **Step 3: Verify the asset**
+- [x] **Step 3: Verify the asset**
 
-Run `list_design_systems` for the project. Expected: a new asset representing `Squid First iOS Minimal Light — Project Palette` with light mode and primary `#2563EB`.
+Run `list_design_systems` for the project. Expected: a new asset named `Squid First iOS Minimal Light` with light mode and primary `#2563EB`.
 
-- [ ] **Step 4: Record the asset ID**
+- [x] **Step 4: Record the asset ID**
 
 Update `.stitch/metadata.json` with the exact returned `assetId` and status `active-sample-phase`.
 
@@ -64,23 +64,23 @@ Update `.stitch/metadata.json` with the exact returned `assetId` and status `act
 - Consumes: the design-system asset from Task 1
 - Produces: one new Stitch `MOBILE` sample screen ID and screenshot for review
 
-- [ ] **Step 1: Capture the current screen count**
+- [x] **Step 1: Capture the current screen count**
 
-Run `list_screens`. Expected baseline: 168 screens before generation.
+Run `list_screens`. Expected baseline: 168 product screens before the rollout; 169 total after the DESIGN.md source document is uploaded and before the sample is generated.
 
-- [ ] **Step 2: Generate the sample**
+- [x] **Step 2: Generate the sample**
 
 Use `generate_screen_from_text` with `deviceType: MOBILE`, the new design-system asset, and a prompt for an iPhone Operations Dashboard using the approved palette and stroke/shadow budget.
 
-- [ ] **Step 3: Verify generated metadata**
+- [x] **Step 3: Verify generated metadata**
 
 Run `get_screen` on the new screen. Expected: `deviceType: MOBILE`, a title identifying it as the iOS Minimal Light sample, and downloadable HTML/screenshot assets.
 
-- [ ] **Step 4: Inspect visual and HTML output**
+- [x] **Step 4: Inspect visual and HTML output**
 
 Expected: background `#F8FAFC`, primary `#2563EB`, white surfaces, no dark canvas, no default card borders, no default card shadows, and 44px minimum interactive targets.
 
-- [ ] **Step 5: Record the sample**
+- [x] **Step 5: Record the sample**
 
 Add the new screen ID/title to `.stitch/metadata.json` without modifying existing screen records.
 
@@ -98,10 +98,18 @@ Add the new screen ID/title to `.stitch/metadata.json` without modifying existin
 
 Show the generated screenshot and summarize typography, color, spacing, stroke, and shadow behavior.
 
-- [ ] **Step 2: Keep existing screens unchanged until approval**
+- [x] **Step 2: Keep existing screens unchanged until approval**
 
 Verify the only new screen instance is the DESIGN.md source and sample output; do not call `apply_design_system` yet.
 
 - [ ] **Step 3: Define the next batch after approval**
 
 Select at most three core mobile flows—Operations Home, Orders, and Order Details—for the first incremental apply/edit cycle.
+
+## Current Results
+
+- Design-system asset: `assets/947ca27b20114406acd82304a904f510`
+- Sample screen: `projects/9946906478898127464/screens/d5331699295f43b497b546a572dab403`
+- Sample title: `Squid First — ภาพรวม (iOS Operations Dashboard)`
+- Verified device: `MOBILE`, 780×1848 export representing a 390×924 iPhone viewport
+- Existing product screens changed: none
