@@ -54,6 +54,7 @@ export function GamePackages({game}:{game:string}){
   {(games.loading&&!games.data)||(loading&&!data)?<Loading/>:games.data&&!selected?<Empty title="ไม่พบเกมนี้"/>:selected&&packages.length>0&&(wide?<Panel>
    {packages.map(p=><button className="product-row" key={p.id} onClick={()=>navigate(packageEditorPath(game,p.id))}><span className="package-title"><PackageIcon game={game} name={p.name}/><span><strong>{p.name}</strong><small>{p.zone.toUpperCase()} · {p.published?'เผยแพร่':'ฉบับร่าง'}</small></span></span><span><b>{dollars(p.preview.details?.price_usd)}</b><small>{p.preview.available?'พร้อมขาย':'ยังขายไม่ได้'}</small></span></button>)}
   </Panel>:<MobileProducts packages={packages} game={game} zones={selected.zones}/>)}
+  {selected&&data&&!packages.length&&!loading&&!games.loading&&!error&&!games.error&&<Panel><Empty title="ยังไม่มีแพ็กเกจขายในเกมนี้" text="เพิ่มแพ็กเกจและจับคู่กับร้านต้นทางก่อนเปิดขาย"/></Panel>}
  </>;
 }
 
@@ -63,12 +64,12 @@ function SourceGamePackages({game}:{game:string}){
  return <>
   <PageHeader back={catalogPath} title="แพ็กเกจต้นทาง"/>
   <ReadNotice error={error} cached={!!data}/>
-  {loading&&!data?<Loading/>:offers.length>0&&<Panel>
+  {loading&&!data?<Loading/>:offers.length>0?<Panel>
    {offers.map(offer=><div className="product-row" key={offer.id}>
     <span className="package-title"><PackageIcon game={game} name={offer.name}/><span><strong>{offer.name}</strong><small>{offer.source_id}{offer.zone!=='unspecified'?' · '+offer.zone.toUpperCase():''}</small></span></span>
     <b>{Number(offer.price).toLocaleString('en-US')} LAK</b>
    </div>)}
-  </Panel>}
+  </Panel>:data&&!loading&&!error?<Panel><Empty title="ยังไม่มีแพ็กเกจต้นทาง" text="ยังไม่มีข้อมูลแพ็กเกจของเกมนี้ที่เก็บไว้ในระบบ"/></Panel>:null}
  </>;
 }
 

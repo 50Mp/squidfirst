@@ -61,10 +61,10 @@ test('test-data controls and orders never expose the internal mock term',async({
 test('order cards use a game icon instead of a letter abbreviation',async({page})=>{
  await page.setViewportSize({width:390,height:844});await open(page);await page.goto('/admin-app/#/orders');
  const cardMark=page.locator('.order-card').first().locator('.game-mark');
- await expect(cardMark.locator('svg')).toBeVisible();await expect(cardMark).not.toHaveText(/^(FF|ML)$/);
- await page.locator('.order-card').first().click();
+ await expect(cardMark.locator('img')).toBeVisible();await expect.poll(()=>cardMark.locator('img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);await expect(cardMark).not.toHaveText(/^(FF|ML)$/);
+ await page.locator('.order-card').first().locator('.order-card-summary').click();
  const detailMark=page.locator('.detail-game .game-mark');
- await expect(detailMark.locator('svg')).toBeVisible();await expect(detailMark).not.toHaveText(/^(FF|ML)$/);
+ await expect(detailMark.locator('img')).toBeVisible();await expect.poll(()=>detailMark.locator('img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);await expect(detailMark).not.toHaveText(/^(FF|ML)$/);
 });
 test('FX local example follows the selected draft rate without saving it',async({page})=>{
  async function savedFx(){
