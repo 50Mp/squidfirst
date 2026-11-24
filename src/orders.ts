@@ -147,6 +147,24 @@ export class OrderService {
    await tx.query("UPDATE orders SET status='payment_review',revision=revision+1 WHERE id=$1",[id]);await this.enqueue(tx,id,'receipt',file);
   });return{accepted:true};
  }
+ async expireAwaitingPayment(now=new Date()):Promise<string[]>{
+  return this.db.transaction(async tx=>{
+   const expired=(await tx.query(
+    `SELECT id FROM orders
+     WHERE status='awaiting_payment' AND created_at<=$1::timestamptz-INTERVAL '15 minutes'
+     ORDER BY created_at,id FOR UPDATE SKIP LOCKED`,
+    [now.toISOString()],
+   )).rows as {id:string}[];
+   for(const {id} of expired){
+    await tx.query("UPDATE orders SET status='cancelled',revision=revision+1 WHERE id=$1",[id]);
+    await tx.query(
+     `INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,'system','internal','Order status: cancelled')`,
+     [id],
+    );
+   }
+   return expired.map(({id})=>id);
+  });
+ }
  async receiptFile(id:string,token:string,fileId:string){await this.owned(this.db,id,token);const file=(await this.db.query('SELECT * FROM order_receipts WHERE id=$1 AND order_id=$2',[fileId,id])).rows[0];if(!file)throw new OrderError(404,'Receipt not found');return file;}
  async adminMessage(id:string,text:string,visibility:'public'|'internal',eventKey:string){
   if(!text.trim()||text.length>2000)throw new OrderError(400,'Invalid reply');
