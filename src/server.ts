@@ -8,6 +8,7 @@ import { Accounts } from './accounts.js';
 import { CustomerChat } from './customer-chat.js';
 import {AdminAuth} from './admin/auth.js';import {AdminService} from './admin/service.js';import {SyncJobs} from './operations/jobs.js';import {Backups} from './operations/backup.js';
 import {OperationsAlerts} from './operations/alerts.js';
+import {runOrderMaintenance} from './order-maintenance.js';
 
 async function main() {
   const host = process.env.HOST || '127.0.0.1';
@@ -28,11 +29,12 @@ async function main() {
   const controller = new AbortController();
   let worker: Promise<void> | undefined;
   let bot:Promise<void>|undefined;
+  let maintenance:Promise<void>|undefined;
   let stopping = false;
   async function stop() {
     if (stopping) return; stopping = true;
     controller.abort();
-    await app.close(); await Promise.all([worker,bot]);await jobs.stop();await backups.stop(); await db.close();
+    await app.close(); await Promise.all([worker,bot,maintenance]);await jobs.stop();await backups.stop(); await db.close();
   }
   process.once('SIGINT', () => { void stop(); }); process.once('SIGTERM', () => { void stop(); });
   try {
@@ -41,6 +43,7 @@ async function main() {
     await orders.init();
     if(auth){await auth.init();await service.init();await jobs.init();await backups.init();await alerts.init();}
     await app.listen({ host, port });
+    maintenance=runOrderMaintenance(orders,controller.signal);
     if (autoSync) worker = runWorker(repo, interval, controller.signal);
     if(telegram)bot=runTelegram(orders,telegram,controller.signal,chat,send=>alerts.tick(send));
     else app.log.info('Telegram not enabled; real order creation is disabled');
