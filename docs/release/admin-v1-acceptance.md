@@ -16,6 +16,15 @@ Updated 2026-11-24 (Asia/Bangkok). Scope: Tasks 1–4 of the approved Stitch imp
 - Encrypted backup `255e72fa-af36-44cf-b8ee-7ad60ee71db3` restored to a new ignored scratch directory. All 22 business table counts matched, 11 receipt files readable, and both Telegram transport queues empty. Scratch recovery starts no workers. Existing unit tests also verify receipt content, wrong-key rejection and refusal to overwrite a destination.
 - No new real payment, supplier order or automated Telegram QA message created during this acceptance run. Real checkout remains disabled in existing configuration.
 
+## Design-system deployment and Tunnel cutover — 2026-11-24
+
+- Approved iOS Minimal Light tokens are deployed at `https://admin.cffirst.com/admin-app/`. The public document returned 200, referenced `assets/index-qiaCLweM.css`, and that production CSS contains `--sf-primary:#2563eb`.
+- Design-system acceptance passed 9/9; the core responsive browser suites passed 18/18; backend/admin TypeScript checks and the production build passed. The full backend suite passed 54/54 outside the restricted sandbox.
+- The remotely-managed `squid-first-local` ingress remains limited to `^/(admin-app|admin/v1)/.*$` at `http://127.0.0.1:3000`, followed by the 404 fallback. Anonymous `/admin/v1/me` returned 401; `/shop/products` and `/` returned 404.
+- Tunnel credentials were rotated after the old host reconnected following a connection-only cleanup. The ignored local `data/cloudflare/tunnel.token` now holds the replacement token; the disclosed intermediate token and the old-host token can no longer establish connections.
+- The connector on this PC was restarted with the replacement token. Cloudflare reported the tunnel healthy with exactly one Windows connector and four edge connections; the prior host connector and the superseded local process connection were cleaned up and did not return during post-cutover verification.
+- Rollback for application code remains a normal rebuild/restart. Tunnel credential rollback must not restore an old token; retrieve the current token from Cloudflare and write it only to the ignored token file before restarting the verified local connector.
+
 ## Pending physical-device checks
 
 Owner reported on 2026-11-24: Mini App opens on iPhone; send control, back navigation and slip viewer work. This is user-reported physical-device evidence. Exact model, iOS and Telegram versions were not supplied. It does not establish message delivery or status parity.

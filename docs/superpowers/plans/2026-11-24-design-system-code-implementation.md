@@ -86,7 +86,7 @@ Run `npx playwright test tests/miniapp/design-alignment.spec.ts`. Expected: all 
 
 Run `npm run check && npm run check:admin`. Expected: both pass.
 
-- [ ] **Step 2: Run backend/unit regression** — 52/54 passed; the backend-only backup and PGlite persistence filesystem tests fail in isolation and are outside the UI surface changed by this batch.
+- [x] **Step 2: Run backend/unit regression** — 54/54 passed outside the restricted sandbox. The earlier backup and PGlite failures were caused by sandbox filesystem restrictions and both passed unchanged in the production-equivalent run.
 
 Run `npm test`. Expected: all tests pass.
 
@@ -109,4 +109,4 @@ Capture representative mobile and desktop flows for owner review without deployi
 - Browser regression: design alignment, core workspace, and UX continuity passed 18/18.
 - TypeScript: backend and admin checks passed.
 - Production build: backend compilation and Vite admin build passed.
-- Unit regression: 52/54 passed. `tests/backup.test.ts` reports a failed backup status and `tests/persistence.test.ts` reports `PGlite is closed`; both reproduce when run alone, outside the CSS/UI surface changed here.
+- Unit regression: 54/54 passed outside the restricted sandbox. Diagnostic evidence showed the sandbox blocked an atomic Temp-file rename; no production backup/database code change was required.
