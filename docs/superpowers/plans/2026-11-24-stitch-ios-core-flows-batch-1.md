@@ -41,19 +41,19 @@
 - Consumes: approved design-system asset and 170-screen baseline inventory
 - Produces: one new `MOBILE` Orders screen ID with downloadable HTML and screenshot
 
-- [ ] **Step 1: Capture the baseline inventory**
+- [x] **Step 1: Capture the baseline inventory**
 
 Run `list_screens` and record all 170 pre-existing screen IDs before generation.
 
-- [ ] **Step 2: Generate the Orders screen**
+- [x] **Step 2: Generate the Orders screen**
 
 Use `generate_screen_from_text` with `deviceType: MOBILE`, the approved design-system asset, and a Thai iPhone order-list prompt containing segmented status filters, search/filter controls, compact summaries, realistic order rows, and the four-item bottom navigation with Orders active.
 
-- [ ] **Step 3: Verify and export the Orders screen**
+- [x] **Step 3: Verify and export the Orders screen**
 
 Expected: Thai title `ออเดอร์`, `deviceType: MOBILE`, no desktop table/sidebar, light canvas, no default card shadow/border, valid font tokens, and 44px controls. Save the returned HTML and screenshot under `.stitch/designs/`.
 
-- [ ] **Step 4: Record the Orders screen**
+- [x] **Step 4: Record the Orders screen**
 
 Add its exact screen ID, title, source file IDs, and verification status to `.stitch/metadata.json`.
 
