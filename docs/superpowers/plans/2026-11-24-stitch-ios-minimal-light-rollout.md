@@ -94,7 +94,7 @@ Add the new screen ID/title to `.stitch/metadata.json` without modifying existin
 - Consumes: owner feedback on the Task 2 sample
 - Produces: an approved shortlist of existing screens for incremental application
 
-- [ ] **Step 1: Present the sample for owner review**
+- [x] **Step 1: Present the sample for owner review**
 
 Show the generated screenshot and summarize typography, color, spacing, stroke, and shadow behavior.
 
@@ -102,9 +102,9 @@ Show the generated screenshot and summarize typography, color, spacing, stroke, 
 
 Verify the only new screen instance is the DESIGN.md source and sample output; do not call `apply_design_system` yet.
 
-- [ ] **Step 3: Define the next batch after approval**
+- [x] **Step 3: Define the next batch after approval**
 
-Select at most three core mobile flows—Operations Home, Orders, and Order Details—for the first incremental apply/edit cycle.
+Create three new core mobile flow screens—Orders, Order Details, and Customer Chat—for the first incremental generation cycle. Keep Operations Home as the approved dashboard sample.
 
 ## Current Results
 
@@ -113,3 +113,5 @@ Select at most three core mobile flows—Operations Home, Orders, and Order Deta
 - Sample title: `Squid First — ภาพรวม (iOS Operations Dashboard)`
 - Verified device: `MOBILE`, 780×1848 export representing a 390×924 iPhone viewport
 - Existing product screens changed: none
+- Owner approval: received on 2026-11-24
+- Approved next batch: Orders, Order Details, Customer Chat
