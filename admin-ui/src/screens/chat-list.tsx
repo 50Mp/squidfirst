@@ -1,4 +1,4 @@
-import {useState,useDeferredValue} from 'react';
+import {useState,useDeferredValue,useEffect} from 'react';
 import {Search,MessagesSquare,MailOpen} from 'lucide-react';
 import {useResource,type Row} from '../api';
 import {PageHeader,Loading,Empty} from '../components';
@@ -7,7 +7,8 @@ import {ReadNotice} from '../components/read-notice';
 
 interface ChatsProps {}
 export function Chats(_:Readonly<ChatsProps>){
- const [search,setSearch]=useState(''),[unreadOnly,setUnreadOnly]=useState(false),query=useDeferredValue(search);
+ const [search,setSearch]=useState(()=>sessionStorage.getItem('squid-chat-search')??''),[unreadOnly,setUnreadOnly]=useState(()=>sessionStorage.getItem('squid-chat-unread')==='true'),query=useDeferredValue(search);
+ useEffect(()=>{sessionStorage.setItem('squid-chat-search',search);sessionStorage.setItem('squid-chat-unread',String(unreadOnly));},[search,unreadOnly]);
  const {data,error,loading}=useResource('/customers?search='+encodeURIComponent(query));
  const customers:Row[]=data?.data??[],unread=customers.filter(c=>c.unread>0),visible=unreadOnly?unread:customers;
  return <><PageHeader title="แชทและลูกค้า" subtitle="ห้องสนทนาล่าสุด · หนึ่งบัญชี หนึ่งห้อง ดูแลทุกออเดอร์"/>

@@ -21,3 +21,23 @@ test('public and internal chat choices are visible and preserve the current draf
  await expect.poll(()=>page.evaluate(()=>document.querySelector('button[aria-label="ส่งข้อความ"]')!.getBoundingClientRect().bottom<=innerHeight)).toBe(true);
  await page.screenshot({path:'artifacts/chat-mode-short-mobile.png'});
 });
+
+test('private draft stays private after leaving and returning to its customer',async({page})=>{
+ await open(page);const c=(await (await page.request.get('/admin/v1/customers')).json()).data[0];await page.goto('/admin-app/#/chats/'+c.id);
+ await page.getByRole('radio',{name:'บันทึกภายใน · ลูกค้าไม่เห็น',exact:true}).check();await page.getByLabel('ข้อความแชท').fill('private return draft');await page.getByRole('button',{name:'ย้อนกลับไปแชท'}).click();await expect(page.getByLabel('ค้นหาลูกค้า')).toBeVisible();await page.goto('/admin-app/#/chats/'+c.id);
+ await expect(page.getByRole('radio',{name:'บันทึกภายใน · ลูกค้าไม่เห็น',exact:true})).toBeChecked();await page.getByLabel('ข้อความแชท').press('Enter');await expect(page.locator('.bubble.internal').getByText('private return draft',{exact:true})).toBeVisible();
+});
+test('failed chat history does not claim a new conversation',async({page})=>{
+ await open(page);const c=(await (await page.request.get('/admin/v1/customers')).json()).data[0];await page.route('**/admin/v1/customers/*/chat',r=>r.fulfill({status:503,json:{error:'unavailable'}}));await page.goto('/admin-app/#/chats/'+c.id);await expect(page.getByRole('alert')).toBeVisible();await expect(page.getByText('เริ่มบทสนทนา',{exact:true})).toHaveCount(0);
+});
+test('chat queue search survives room navigation and reload',async({page})=>{
+ await open(page);await page.goto('/admin-app/#/chats');await page.getByLabel('ค้นหาลูกค้า').fill('player2');await page.locator('.chat-card').first().getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();await page.getByRole('button',{name:'ย้อนกลับไปแชท'}).click();await expect(page.getByLabel('ค้นหาลูกค้า')).toHaveValue('player2');await page.reload();await expect(page.getByLabel('ค้นหาลูกค้า')).toHaveValue('player2');
+});
+test('switching to unsaved LFX mode never previews the persisted manual rate',async({page})=>{
+ await open(page);await page.route('**/admin/v1/fx',r=>r.fulfill({json:{mode:'manual',revision:1,rate:{lak_per_usd:'99999'}}}));await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'อัตโนมัติจาก LFX',exact:false}).check();await expect(page.getByRole('status',{name:'ผลคำนวณตัวอย่าง'})).not.toContainText('999,990');
+});
+test('pending send prevents typing a draft that its response would clear',async({page})=>{
+ await open(page);const c=(await (await page.request.get('/admin/v1/customers')).json()).data[0];await page.goto('/admin-app/#/chats/'+c.id);await expect(page.getByLabel('ข้อความแชท')).toBeVisible();
+ let release!:()=>void;const hold=new Promise<void>(resolve=>release=resolve);await page.route('**/admin/v1/customers/*/chat',async r=>{if(r.request().method()==='POST')await hold;await r.continue();});
+ await page.getByLabel('ข้อความแชท').fill('slow reply');await page.getByRole('button',{name:'ส่งข้อความ'}).click();try{await expect(page.getByLabel('ข้อความแชท')).toBeDisabled();}finally{release();}await expect(page.getByLabel('ข้อความแชท')).toBeEnabled();
+});
