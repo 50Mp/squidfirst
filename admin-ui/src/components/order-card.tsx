@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {Copy, Check, ChevronRight, UserRound} from 'lucide-react';
 import {dateTime, dollars, gameName, navigate, shortId, type Row} from '../api';
-import {displayText, Status} from '../components';
+import {displayText, GameMark, Status} from '../components';
 
 interface OrderCardProps {readonly order:Row;readonly selected?:boolean}
 export function OrderCard({order,selected=false}:Readonly<OrderCardProps>) {
@@ -16,7 +16,7 @@ export function OrderCard({order,selected=false}:Readonly<OrderCardProps>) {
   <button className="order-card-summary" aria-current={selected?'true':undefined} onClick={()=>navigate('/orders/'+order.id)}>
    <span className="order-card-heading"><strong>#{shortId(order.id)}</strong><Status value={order.status}/></span>
    <small className="muted">{dateTime(order.created_at)}{d.mock&&<b className="mock-tag">ทดสอบ</b>}</small>
-   <span className="order-card-product"><span className="game-mark">{d.game_id==='free-fire'?'FF':d.game_id==='mobile-legends-bang-bang'?'ML':'SQ'}</span><span><span className="product-tags"><b>{gameName(d.game_id)}</b><span>โซน: {d.zone?.toUpperCase()??'—'}</span></span><strong>{displayText(d.name)}</strong><span className="order-card-customer"><UserRound size={14}/>{order.username??'ลูกค้าทดสอบ'}</span></span><ChevronRight size={18}/></span>
+   <span className="order-card-product"><GameMark gameId={d.game_id}/><span><span className="product-tags"><b>{gameName(d.game_id)}</b><span>โซน: {d.zone?.toUpperCase()??'—'}</span></span><strong>{displayText(d.name)}</strong><span className="order-card-customer"><UserRound size={14}/>{order.username??'ลูกค้าทดสอบ'}</span></span><ChevronRight size={18}/></span>
   </button>
   <div className="uid-strip"><span>UID <strong className="selectable">{uid??'—'}</strong></span>{uid&&<button className="quiet" aria-label="คัดลอก UID" onClick={copyUid}>{copyState==='คัดลอก UID แล้ว'?<Check size={16}/>:<Copy size={16}/>}<span>คัดลอก UID</span></button>}</div>
   {copyState&&<p className="copy-feedback" role="status">{copyState}</p>}

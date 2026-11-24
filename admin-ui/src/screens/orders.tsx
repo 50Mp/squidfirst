@@ -38,6 +38,7 @@ import {
   Field,
   Toggle,
   displayText,
+  GameMark,
 } from "../components";
 interface OrdersProps {
   readonly path: string;
@@ -264,9 +265,7 @@ export function OrderDetail({
         <div>
           <Panel title="ข้อมูลการเติมเกม">
             <div className="detail-game">
-              <span className="game-mark ff">
-                {d.game_id === "free-fire" ? "FF" : "ML"}
-              </span>
+              <GameMark gameId={d.game_id} />
               <div>
                 <h2>{gameName(d.game_id)}</h2>
                 <p>{displayText(d.name)}</p>

@@ -58,6 +58,14 @@ test('test-data controls and orders never expose the internal mock term',async({
  await expect(page.getByText('ออเดอร์ทดสอบ ไม่ต้องโอนเงินจริงหรือเติมเกมจริง')).toBeVisible();
  await expect(page.locator('body')).not.toContainText(/\bmock\b/i);
 });
+test('order cards use a game icon instead of a letter abbreviation',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await open(page);await page.goto('/admin-app/#/orders');
+ const cardMark=page.locator('.order-card').first().locator('.game-mark');
+ await expect(cardMark.locator('svg')).toBeVisible();await expect(cardMark).not.toHaveText(/^(FF|ML)$/);
+ await page.locator('.order-card').first().click();
+ const detailMark=page.locator('.detail-game .game-mark');
+ await expect(detailMark.locator('svg')).toBeVisible();await expect(detailMark).not.toHaveText(/^(FF|ML)$/);
+});
 test('FX local example follows the selected draft rate without saving it',async({page})=>{
  await page.setViewportSize({width:390,height:844});await open(page);const before=(await (await page.request.get('/admin/v1/fx')).json()).rate;
  await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'กำหนดเอง',exact:false}).check();await page.getByLabel('เรท LAK ต่อ USD').fill('22675.43');
