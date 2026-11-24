@@ -68,15 +68,15 @@ Add its exact screen ID, title, source file IDs, and verification status to `.st
 - Consumes: design-system asset and the list-to-detail navigation context from Task 1
 - Produces: one new `MOBILE` Order Details screen for order `#SQ-98435`
 
-- [ ] **Step 1: Generate the Order Details screen**
+- [x] **Step 1: Generate the Order Details screen**
 
 Use `generate_screen_from_text` with a Thai iPhone detail prompt containing order/customer/game/package identifiers, slip review, status timeline, cost/profit breakdown, customer chat preview, and a sticky status-appropriate primary action.
 
-- [ ] **Step 2: Verify and export the Order Details screen**
+- [x] **Step 2: Verify and export the Order Details screen**
 
 Expected: Thai title `รายละเอียดออเดอร์`, visible order `#SQ-98435`, clear back navigation, light canvas, valid font tokens, no desktop table/sidebar, and a 44px sticky primary action. Save HTML and screenshot.
 
-- [ ] **Step 3: Record the Order Details screen**
+- [x] **Step 3: Record the Order Details screen**
 
 Add its exact screen ID, title, source file IDs, and verification status to `.stitch/metadata.json`.
 
