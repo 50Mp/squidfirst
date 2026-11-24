@@ -5,7 +5,9 @@ Updated 2026-11-24 (Asia/Bangkok). Scope: Tasks 1–4 of the approved Stitch imp
 ## Verified
 
 - Current canonical screen/route/API mapping: [screen-route-matrix](../design/screen-route-matrix.md). Primary color #2563EB; existing owner/manual workflow retained.
-- Backend tests 53/53; browser tests 44/44; TypeScript and production build passed. Browser fixture uses isolated data, no `.env`, supplier purchase or Telegram transport.
+- Backend tests 54/54 after adding channel parity coverage; browser baseline 44/44; TypeScript and production build passed. Browser fixture uses isolated data, no `.env`, supplier purchase or Telegram transport.
+- Additional channel parity integration test passed: web approve/start/reopen and Telegram accept/complete callbacks share one MOCK record; callback replay preserves revision, formatted bot status matches the admin read, and status actions create no public customer chat messages. This tests callback processing, not live Telegram delivery.
+- Browser reconnect acceptance rerun passed: offline/online transition drains paginated history before marking messages read. Physical iPhone reconnect results remain pending.
 - Responsive checks at 360/390/768/1280/1440; composer at 360x450; receipt image modal, PDF download failure/retry; public/internal separation, per-customer drafts, search persistence, stale reads and recovery.
 - Independent review of d65fc6f..d2057f7 found five Important issues. Each reproduced before repair: private draft visibility after remount; false empty chat on initial failure; lost queue filters; unsaved LFX showing manual arithmetic; typing during pending send losing a subsequent draft. All regression checks and final suites passed after the repair pass. No Critical or Minor findings reported.
 - PostgreSQL Docker container healthy. Local API restarted with backend and UI from the same build; `/health` returned ok.
@@ -29,7 +31,9 @@ Chromium emulation does not verify the remaining physical-device items.
 
 The PC, Docker, Internet and Cloudflare connector must remain running. Launchers are not Windows services. Preserve `.env`, PostgreSQL volume, receipts and encrypted backups. Secrets never belong in Git.
 
-Code rollback target before this implementation: d65fc6f. In an isolated checkout, install locked dependencies and rebuild that revision; stop only the verified API process, then start its backend and UI together against preserved storage. No schema changes were introduced in this implementation. Do not restore scratch queues to production. A full application rollback rehearsal is **not yet verified**; scratch data recovery is verified separately.
+Code rollback target before this implementation: d65fc6f. In an isolated checkout, install locked dependencies and rebuild that revision; stop only the verified API process, then start its backend and UI together against preserved storage. No schema changes were introduced in this implementation. Do not restore scratch queues to production.
+
+Isolated rollback rehearsal passed on 2026-11-24: exported d65fc6f without changing the active checkout; dependency lock matched; prior backend/UI rebuilt successfully. Prior server booted against restored scratch data with workers disabled and returned health ok. Because disabling Telegram also disables admin registration in the normal server, its compiled app was additionally started with a fake owner configuration and no transport workers on loopback port 3102. The prior UI bundle returned 200 and anonymous admin access returned 401. The rehearsal process was stopped; live port 3000 remained healthy. This verifies rebuilding and booting the previous app/data together; an actual production process swap was not performed.
 
 ## Implementation decisions
 
