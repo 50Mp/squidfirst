@@ -13,7 +13,7 @@ async function openWorkspace(page:Page) {
 test('queue shortcuts open filtered orders and cards expose zone and UID',async({page,context})=>{
  await context.grantPermissions(['clipboard-read','clipboard-write']);
  await openWorkspace(page);
- await page.getByRole('switch',{name:'รวมรายการ MOCK'}).click();
+ await page.getByRole('switch',{name:'รวมรายการทดสอบ'}).click();
  await page.getByRole('button',{name:'เปิดคิวตรวจสลิป'}).click();
  await expect(page.getByLabel('กรองสถานะ')).toHaveValue('payment_review');
  const orders=(await (await page.request.get('/admin/v1/orders?status=payment_review')).json()).data;

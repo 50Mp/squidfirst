@@ -46,6 +46,18 @@ test('approved iOS light design system is the final UI contract',async({page})=>
  expect(contract.navigation.height).toBeGreaterThanOrEqual(44);
  expect(contract.overflows).toBe(false);
 });
+test('test-data controls and orders never expose the internal mock term',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await open(page);
+ await expect(page.getByRole('switch',{name:'รวมรายการทดสอบ'})).toBeVisible();
+ await page.getByRole('switch',{name:'รวมรายการทดสอบ'}).check();
+ await expect(page.locator('body')).not.toContainText(/\bmock\b/i);
+ await page.goto('/admin-app/#/orders');
+ await expect(page.getByRole('switch',{name:'รวมรายการทดสอบ'})).toBeVisible();
+ await expect(page.locator('body')).not.toContainText(/\bmock\b/i);
+ await page.locator('.order-card').first().click();
+ await expect(page.getByText('ออเดอร์ทดสอบ ไม่ต้องโอนเงินจริงหรือเติมเกมจริง')).toBeVisible();
+ await expect(page.locator('body')).not.toContainText(/\bmock\b/i);
+});
 test('FX local example follows the selected draft rate without saving it',async({page})=>{
  await page.setViewportSize({width:390,height:844});await open(page);const before=(await (await page.request.get('/admin/v1/fx')).json()).rate;
  await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'กำหนดเอง',exact:false}).check();await page.getByLabel('เรท LAK ต่อ USD').fill('22675.43');
