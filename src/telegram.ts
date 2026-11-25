@@ -210,8 +210,14 @@ export function createOrderCardDelivery(service:OrderService,config:TelegramConf
   }finally{release();if(locks.get(key)===current)locks.delete(key);}
  };
 }
-export async function runTelegram(service:OrderService,config:TelegramConfig,signal:AbortSignal,chat?:CustomerChat,operationalAlerts?:(send:(text:string)=>Promise<unknown>)=>Promise<void>){
- const api=new BotApi(config,signal);
+export type RunTelegramOptions={
+ stopOnConflict?:boolean;
+ beforeUpdate?:(update:any)=>Promise<boolean>|boolean;
+};
+export async function runTelegram(service:OrderService,config:TelegramConfig,signal:AbortSignal,chat?:CustomerChat,operationalAlerts?:(send:(text:string)=>Promise<unknown>)=>Promise<void>,options?:RunTelegramOptions){
+ const internalAbort=new AbortController();
+ const effectiveSignal=AbortSignal.any([signal,internalAbort.signal]);
+ const api=new BotApi(config,effectiveSignal);
  let topicsEnabled=false,lastTopicCheck=0;
  const ensureTopic=async(roomId:string)=>{
   if(!chat)throw new Error('Customer chat configuration required');
@@ -236,7 +242,7 @@ export async function runTelegram(service:OrderService,config:TelegramConfig,sig
  const recoverDestination=async(destination:{threadId?:number;roomId?:string},error:unknown)=>{if(!chat||!destination.roomId||destination.threadId===undefined)throw error;return{...destination,threadId:await recoverCustomerTopic(chat,config,api,destination.roomId,destination.threadId,error,()=>ensureTopic(destination.roomId!))};};
  const deliverCard=createOrderCardDelivery(service,config,api,orderDestination,recoverDestination);
  const delivery=async()=>{
-  while(!signal.aborted){
+  while(!effectiveSignal.aborted){
    let job:any,chatJob:any;
    try{
     job=await service.claim();
@@ -256,18 +262,25 @@ export async function runTelegram(service:OrderService,config:TelegramConfig,sig
    }catch(error){
     if(job){try{await service.failed(job.id);}catch{/* A pending lease is reclaimed after database recovery. */}}
     if(chatJob&&chat){try{await chat.failed(chatJob.id);}catch{}}
-    if(!signal.aborted)console.error('Telegram delivery failed; queued for retry (credentials and content omitted)',error instanceof TelegramApiError?{code:error.code,missingTopic:error.missingTopic,closedTopic:error.closedTopic}: {kind:'network_or_database'});
+    if(!effectiveSignal.aborted)console.error('Telegram delivery failed; queued for retry (credentials and content omitted)',error instanceof TelegramApiError?{code:error.code,missingTopic:error.missingTopic,closedTopic:error.closedTopic}: {kind:'network_or_database'});
    }
-   try{await delay(1000,undefined,{signal});}catch{break;}
+   try{await delay(1000,undefined,{signal:effectiveSignal});}catch{break;}
   }
  };
  const updates=async()=>{
-  while(!signal.aborted){
+  while(!effectiveSignal.aborted){
    try{
     const offset=await service.cursor(config.botKey);
     const incoming=await api.call('getUpdates',{offset,timeout:20,allowed_updates:['message','callback_query']});
     for(const update of incoming){
-     if(signal.aborted)break;
+     if(effectiveSignal.aborted)break;
+     if(options?.beforeUpdate){
+      const allowed=await options.beforeUpdate(update);
+      if(!allowed){
+       internalAbort.abort();
+       throw new Error('Update rejected outside acceptance');
+      }
+     }
      await processTelegramUpdate(service,config,update,async(text,id)=>{if(id)await api.call('answerCallbackQuery',{callback_query_id:id,text});},chat,async(id)=>{
       const order=await service.adminRead(id);
       await deliverCard({order_id:id,kind:'order',payload:{}},order,{});
@@ -286,18 +299,29 @@ export async function runTelegram(service:OrderService,config:TelegramConfig,sig
      });
      await service.advance(config.botKey,update.update_id+1);
     }
-   }catch{if(!signal.aborted)console.error('Telegram polling failed; check bot token, private admin IDs, webhook conflicts or network');try{await delay(5000,undefined,{signal});}catch{break;}}
+   }catch(err:any){
+    if(options?.stopOnConflict&&(err?.code===409||err?.status===409)){
+     internalAbort.abort();
+     throw err;
+    }
+    if(err?.message==='Update rejected outside acceptance'){
+     internalAbort.abort();
+     throw err;
+    }
+    if(!effectiveSignal.aborted)console.error('Telegram polling failed; check bot token, private admin IDs, webhook conflicts or network');
+    try{await delay(5000,undefined,{signal:effectiveSignal});}catch{break;}
+   }
   }
  };
  const icons=async()=>{
   if(!chat?.orderIconWork)return;
   let availableIcons:any;
   const iconCall=async(method:string,body:any)=>method==='getForumTopicIconStickers'?(availableIcons??=await api.call(method,body)):api.call(method,body);
-  while(!signal.aborted){
-   try{await syncTelegramTopicIcons(chat,config,iconCall);}catch{if(!signal.aborted)console.error('Telegram topic icon sync failed; retry scheduled (credentials omitted)');}
-   try{await delay(5000,undefined,{signal});}catch{break;}
+  while(!effectiveSignal.aborted){
+   try{await syncTelegramTopicIcons(chat,config,iconCall);}catch{if(!effectiveSignal.aborted)console.error('Telegram topic icon sync failed; retry scheduled (credentials omitted)');}
+   try{await delay(5000,undefined,{signal:effectiveSignal});}catch{break;}
   }
  };
- const alerts=async()=>{while(!signal.aborted&&operationalAlerts){try{await operationalAlerts(text=>api.call('sendMessage',{chat_id:config.chatId,text}));}catch{if(!signal.aborted)console.error('Operational alert retry scheduled');}try{await delay(60000,undefined,{signal});}catch{break;}}};
+ const alerts=async()=>{while(!effectiveSignal.aborted&&operationalAlerts){try{await operationalAlerts(text=>api.call('sendMessage',{chat_id:config.chatId,text}));}catch{if(!effectiveSignal.aborted)console.error('Operational alert retry scheduled');}try{await delay(60000,undefined,{signal:effectiveSignal});}catch{break;}}};
  await Promise.all([delivery(),updates(),icons(),alerts()]);
 }
