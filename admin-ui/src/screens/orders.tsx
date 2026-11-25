@@ -23,6 +23,7 @@ import {
   MessageSquare,
   CheckCircle2,
   ReceiptText,
+  Send,
 } from "lucide-react";
 import {
   api,
@@ -367,7 +368,20 @@ export function OrderDetail({
         back={back}
         title="รายละเอียดออเดอร์"
       />
-      <div className="stitch-detail-meta"><strong>#{shortId(id)}</strong><Status value={o.status}/><time dateTime={o.created_at}>{dateTime(o.created_at)}</time></div>
+      <div className="stitch-detail-card">
+        <div className="stitch-detail-header-row">
+          <div className="stitch-detail-id">#SQ-{shortId(id)}</div>
+          <Status value={o.status}/>
+        </div>
+        <div className="stitch-detail-time">{dateTime(o.created_at)}</div>
+        <div className="stitch-detail-channel">
+          <span style={{display:'flex',alignItems:'center',gap:6}}>
+            <Send size={14} style={{color:'var(--sf-primary)'}}/>
+            <span>ช่องทาง: <strong>Telegram Mini App</strong> (Storefront Web)</span>
+          </span>
+          <span className="store-badge primary">v2.4 API</span>
+        </div>
+      </div>
       <div className="stitch-detail-amount"><span>ยอดรวมที่ต้องชำระ</span><strong>{dollars(d.price_usd)} <small>USD</small></strong></div>
       <ErrorBox message={error || actionError} />
       {desktop&&orderActions}
@@ -379,6 +393,20 @@ export function OrderDetail({
       <div className="detail-grid">
         <div>
           <Panel title="ข้อมูลการเติมเกม">
+            {o.customer?.username && (
+              <div className="stitch-detail-customer-header">
+                <div className="stitch-detail-customer-info">
+                  <div className="stitch-detail-customer-avatar">
+                    {o.customer.username.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <strong style={{fontSize: 15, display: 'block'}}>{o.customer.username}</strong>
+                    <span style={{fontSize: 12, color: 'var(--sf-text-secondary)'}}>ลูกค้าประจำ</span>
+                  </div>
+                </div>
+                <span className="store-badge success">VIP Member</span>
+              </div>
+            )}
             <div className="detail-game">
               <GameMark gameId={d.game_id} />
               <div>
@@ -454,7 +482,21 @@ export function OrderDetail({
         </div>
         <div>
           <Panel title="ข้อมูลต้นทุน · เฉพาะแอดมิน">
-            <dl className="facts">
+            <div className="stitch-financial-grid">
+              <div>
+                <span>ยอดชำระ</span>
+                <strong>{dollars(d.price_usd)}</strong>
+              </div>
+              <div>
+                <span>ต้นทุนส่ง</span>
+                <strong>{Number.isFinite(i.cost_lak) ? Number(i.cost_lak).toLocaleString("en-US") + " LAK" : "—"}</strong>
+              </div>
+              <div>
+                <span>มาร์จิ้น</span>
+                <strong className="profit">{i.markup_bps !== undefined ? "+" + (i.markup_bps / 100) + "%" : "—"}</strong>
+              </div>
+            </div>
+            <dl className="facts" style={{marginTop: 12}}>
               <div>
                 <dt>ร้านต้นทาง</dt>
                 <dd>{displayText(i.source_id)}</dd>

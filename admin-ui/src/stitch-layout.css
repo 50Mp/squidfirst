@@ -77,6 +77,19 @@
 .stitch-detail-uid { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; }
 .stitch-detail-uid button { display:inline-flex; align-items:center; gap:5px; }
 .stitch-order-detail .timeline { scroll-margin-block:100px; }
+.stitch-detail-card { background:var(--sf-surface, #ffffff); border:1px solid var(--sf-separator, #e2e8f0); border-radius:16px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+.stitch-detail-header-row { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.stitch-detail-id { font-size:18px; font-weight:700; color:var(--sf-text, #0f172a); }
+.stitch-detail-time { font-size:12px; color:var(--sf-text-secondary, #64748b); margin-top:4px; }
+.stitch-detail-channel { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--sf-separator, #e2e8f0); font-size:12px; color:var(--sf-text-secondary, #64748b); }
+.stitch-detail-customer-header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.stitch-detail-customer-info { display:flex; align-items:center; gap:10px; min-width:0; }
+.stitch-detail-customer-avatar { width:38px; height:38px; border-radius:50%; background:var(--sf-surface-container, #e8eeff); color:var(--sf-primary, #2563eb); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0; }
+.stitch-financial-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; background:var(--sf-surface-container-low, #f0f3ff); padding:12px; border-radius:12px; margin-top:12px; text-align:center; }
+.stitch-financial-grid > div { display:flex; flex-direction:column; gap:2px; }
+.stitch-financial-grid span { font-size:11px; color:var(--sf-text-secondary, #64748b); }
+.stitch-financial-grid strong { font-size:14px; color:var(--sf-text, #0f172a); }
+.stitch-financial-grid strong.profit { color:#16a34a; }
 .stitch-urgent { display:flex; align-items:center; gap:10px; width:100%; min-height:60px; padding:12px 16px; margin-bottom:16px; background:var(--sf-surface); border-radius:16px; text-align:left; }
 .stitch-urgent-dot { width:9px; height:9px; flex:none; background:var(--sf-warning); border-radius:50%; }
 .stitch-urgent svg { margin-inline-start:auto; color:var(--sf-text-secondary); flex:none; }
@@ -145,6 +158,18 @@
 .stitch-store .tile-icon { width:40px; height:40px; border-radius:10px; }
 .stitch-store .store-menu-item strong { font-size:15px; }
 .stitch-store .store-menu-item small { font-size:12px; margin-top:2px; }
+.store-sub-metric { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--sf-surface-container-low, #f0f3ff); padding:10px 12px; border-radius:12px; border:1px solid var(--sf-separator, #e2e8f0); width:100%; text-align:left; cursor:pointer; margin-top:8px; transition:background 0.15s ease; }
+.store-sub-metric:hover { background:var(--sf-surface-hover, #e8eeff); }
+.store-sub-metric-info { display:flex; align-items:center; gap:10px; min-width:0; }
+.store-sub-metric-info svg { color:var(--sf-primary, #2563eb); flex-shrink:0; }
+.store-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap; }
+.store-badge.success { background:#ecfdf5; color:#047857; }
+.store-badge.primary { background:#eff6ff; color:#1d4ed8; }
+.store-badge.warning { background:#fffbeb; color:#b45309; }
+.store-menu-badge-wrap { display:flex; align-items:center; gap:8px; margin-inline-start:auto; }
+.store-engine-footer { display:flex; flex-direction:column; gap:6px; padding:14px 16px; margin-top:20px; background:var(--sf-surface-container, #eef2ff); border-radius:16px; font-size:12px; }
+.store-engine-header { display:flex; align-items:center; justify-content:space-between; font-weight:600; color:var(--sf-text, #0f172a); }
+.store-engine-details { display:flex; align-items:center; justify-content:space-between; color:var(--sf-text-secondary, #64748b); font-size:11px; }
 .stitch-fx .mode-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .stitch-fx .mode-options label.selected { background:var(--sf-primary-soft); color:var(--sf-primary-pressed); }
 .stitch-fx .rate-display { background:var(--sf-primary-soft); }
