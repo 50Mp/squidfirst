@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {ArrowUpRight,Clock3,AlertTriangle,Activity,MessagesSquare,Package,Globe2,ReceiptText,Bell,CheckCircle2,Eye} from 'lucide-react';
-import {useResource,navigate,dollars,api,refreshAll,confirmAction,gameName,dateTime,shortId,type Row} from '../api';
+import {useResource,navigate,dollars,api,key,refreshAndWait,confirmAction,gameName,dateTime,shortId,type Row} from '../api';
 import {PageHeader,Panel,Loading,Empty,OrderRow,Toggle,displayText} from '../components';
 import {ReadNotice} from '../components/read-notice';
 import {useWideWorkspace} from '../hooks/use-wide-workspace';
@@ -30,8 +30,12 @@ function OverviewMobile({mock,setMock}:Readonly<{mock:boolean;setMock:(value:boo
   if(!ok)return;
   setBusy(true);setActionError('');
   try{
-   await api('/orders/'+encodeURIComponent(urgent.id)+'/actions','POST',{action:'approve'});
-   refreshAll();
+   await api('/orders/'+encodeURIComponent(urgent.id)+'/actions','POST',{
+    action:'approve',
+    idempotency_key:key(),
+    expected_revision:urgent.revision,
+   });
+   await refreshAndWait();
   }catch(err:any){
    setActionError(err.message);
   }finally{
