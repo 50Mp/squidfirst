@@ -80,6 +80,24 @@
 .stitch-urgent { display:flex; align-items:center; gap:10px; width:100%; min-height:60px; padding:12px 16px; margin-bottom:16px; background:var(--sf-surface); border-radius:16px; text-align:left; }
 .stitch-urgent-dot { width:9px; height:9px; flex:none; background:var(--sf-warning); border-radius:50%; }
 .stitch-urgent svg { margin-inline-start:auto; color:var(--sf-text-secondary); flex:none; }
+.stitch-urgent-card { display:flex; flex-direction:column; gap:12px; width:100%; padding:16px; margin-bottom:16px; background:var(--sf-surface-container, #eef2ff); border:1px solid var(--sf-border-subtle, rgba(37, 99, 235, 0.15)); border-radius:16px; text-align:left; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+.stitch-urgent-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.stitch-urgent-title { display:flex; align-items:center; gap:8px; font-weight:600; font-size:15px; color:var(--sf-text, #0f172a); }
+.stitch-urgent-title svg { color:var(--sf-primary, #2563eb); flex-shrink:0; }
+.stitch-urgent-badge { font-size:11px; font-weight:600; padding:3px 8px; border-radius:9999px; background:#fee2e2; color:#991b1b; white-space:nowrap; }
+.stitch-urgent-body { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--sf-surface, #ffffff); padding:10px 12px; border-radius:12px; border:1px solid var(--sf-separator, #e2e8f0); cursor:pointer; text-align:left; transition:background 0.15s ease; width:100%; }
+.stitch-urgent-body:hover { background:var(--sf-surface-hover, #f8fafc); }
+.stitch-urgent-icon { width:40px; height:40px; border-radius:10px; background:var(--sf-primary-soft, #eff6ff); color:var(--sf-primary, #2563eb); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.stitch-urgent-info { display:flex; flex-direction:column; min-width:0; flex:1; gap:2px; }
+.stitch-urgent-name { font-size:13px; font-weight:600; color:var(--sf-text, #0f172a); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stitch-urgent-sub { font-size:12px; color:var(--sf-text-secondary, #64748b); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stitch-urgent-amount { font-size:16px; font-weight:700; color:var(--sf-primary, #2563eb); text-align:right; white-space:nowrap; }
+.stitch-urgent-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stitch-urgent-btn-primary { display:flex; align-items:center; justify-content:center; gap:6px; height:40px; padding:0 12px; background:var(--sf-primary, #2563eb); color:#ffffff; border-radius:10px; font-size:13px; font-weight:600; border:none; cursor:pointer; transition:opacity 0.15s ease; }
+.stitch-urgent-btn-primary:hover:not(:disabled) { opacity:0.92; }
+.stitch-urgent-btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+.stitch-urgent-btn-secondary { display:flex; align-items:center; justify-content:center; gap:6px; height:40px; padding:0 12px; background:var(--sf-surface, #ffffff); color:var(--sf-text, #0f172a); border:1px solid var(--sf-separator, #e2e8f0); border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; transition:background 0.15s ease; }
+.stitch-urgent-btn-secondary:hover:not(:disabled) { background:var(--sf-surface-hover, #f8fafc); }
 .stitch-overview .stitch-metrics { gap:0; padding:12px 16px; border-radius:16px; background:var(--sf-surface); }
 .stitch-metrics .metric-card { border-radius:0; padding:10px 12px; }
 .stitch-metrics .metric-card:nth-child(odd) { border-inline-end:1px solid var(--sf-separator); }
