@@ -1,8 +1,9 @@
-import type {ReactNode} from 'react';
+﻿import type {ReactNode} from 'react';
 import {AlertTriangle,ArrowLeft,ChevronRight,LoaderCircle,Package,Check,Clock3} from 'lucide-react';
 import {GameMark} from './components/game-art';
 import {navigate,statuses,dateTime,dollars,gameName,shortId,type Row} from './api';
-export function SquidMark(){return <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M12 24V18a12 12 0 0 1 24 0v6c0 5-5 9-12 9s-12-4-12-9Z" stroke="currentColor" strokeWidth="2.3"/><path d="M14 29c-4 6-7 4-7 8 0 4 6 4 8 0m3-5v7c0 4 5 4 6 0V33m6-1v7c0 4 6 4 7 0m-3-10c4 6 7 4 7 8" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"/><circle cx="19" cy="21" r="2" fill="currentColor"/><circle cx="29" cy="21" r="2" fill="currentColor"/></svg>;}
+import squidLogo from './squid-logo.png';
+export function SquidMark(){return <img src={squidLogo} alt="Squid first" aria-hidden="true" width={44} height={44} style={{objectFit:'contain',flexShrink:0,display:'block'}}/>;}
 export function PageHeader({title,subtitle,back,children}:{title:string;subtitle?:string;back?:string;children?:ReactNode}){return <header className="page-heading"><div>{back&&<button className="back-link" onClick={()=>navigate(back)}><ArrowLeft size={16}/>ย้อนกลับ</button>}<h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{children}</header>;}
 export function Status({value}:{value:string}){return <span className={'status '+value}>{['completed'].includes(value)?<Check size={13}/>:value==='issue'?<AlertTriangle size={13}/>:<Clock3 size={13}/>} {statuses[value]??value}</span>;}
 export function ErrorBox({message}:{message?:string}){return message?<div className="error-box" role="alert"><AlertTriangle size={18}/><span>{message}</span></div>:null;}
