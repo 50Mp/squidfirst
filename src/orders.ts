@@ -5,6 +5,7 @@ import type { Accounts } from './accounts.js';
 import type {AdminActor} from './admin/contracts.js';
 import {appendAudit} from './admin/audit.js';
 import {resolveEffectiveFxRate} from './operations/settings.js';
+import {recordAdminChatMessage} from './chat-message-record.js';
 
 export class OrderError extends Error { constructor(public statusCode:number,message:string){super(message);} }
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex');
@@ -12,6 +13,8 @@ const requireToken=(token:string)=>{if(!/^[A-Za-z0-9_-]{43,128}$/.test(token))th
 export type PublishInput={name:string;game_id:string;zone:string;offer_ids:string[];markup_bps:number};
 export type QuoteOverride={markup_bps:number;use_default_markup:boolean;strategy:'auto_cheapest'|'fixed_offer';fixed_offer_id?:string|null;offer_ids?:string[]};
 export type TelegramOrderCard={chat_id:string;topic_id:string|null;message_id:string;media_kind:'text'|'photo'|'document';receipt_id:string|null};
+export const slipIssueReasons=['amount_mismatch','blurry_slip','duplicate_slip','wrong_account','other'] as const;
+export interface SlipIssueInput{reason:typeof slipIssueReasons[number];customer_message:string;internal_note?:string}
 export function allowedOrderActions(status:string,verified:boolean){
  if(status==='awaiting_payment'&&!verified)return['cancel'];
  if(status==='payment_review'&&!verified)return['approve','issue','cancel'];
@@ -35,6 +38,7 @@ export class OrderService {
    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id TEXT`,
    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1`,
    `ALTER TABLE orders ADD COLUMN IF NOT EXISTS assigned_admin_id TEXT`,
+   `ALTER TABLE orders ADD COLUMN IF NOT EXISTS slip_issue JSONB`,
    `CREATE TABLE IF NOT EXISTS order_messages(id BIGSERIAL PRIMARY KEY,order_id TEXT REFERENCES orders(id),sender TEXT NOT NULL,visibility TEXT NOT NULL CHECK(visibility IN ('public','internal')),text TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
    `CREATE TABLE IF NOT EXISTS order_receipts(id TEXT PRIMARY KEY,order_id TEXT REFERENCES orders(id),path TEXT NOT NULL,mime TEXT NOT NULL,size INTEGER NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
    `CREATE TABLE IF NOT EXISTS telegram_outbox(id TEXT PRIMARY KEY,order_id TEXT REFERENCES orders(id),kind TEXT NOT NULL,payload JSONB NOT NULL,state TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,next_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),lease_until TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
@@ -103,11 +107,11 @@ export class OrderService {
   try{const q=await this.quote(this.db,id,rate===undefined?await this.rate():rate,true,override);const cost=validateDecimal(q.rate!.lak_per_usd),costCents=(BigInt(q.offer.price)*cost.scale*100n*2n+cost.units)/(cost.units*2n);return{available:true,details:q.publicQuote,source_id:q.offer.source_id,offer_id:q.offer.id,cost_lak:q.offer.price,lak_per_usd:q.rate!.lak_per_usd,markup_bps:q.product.markup_bps,estimated_gross_profit_usd:(Number(BigInt(q.cents)-costCents)/100).toFixed(2)};}
   catch(error){if(error instanceof OrderError&&[404,409].includes(error.statusCode))return{available:false,reason:error.message};throw error;}
  }
- async create(input:{product_id:string;player:Record<string,string>;token:string;idempotency_key:string}){
+ async create(input:{product_id:string;player:Record<string,string>;token:string;idempotency_key:string;expected_price_usd?:string}){
   requireToken(input.token);
   if(!/^[A-Za-z0-9_-]{16,100}$/.test(input.idempotency_key))throw new OrderError(400,'Invalid idempotency key');
   const player=Object.fromEntries(Object.entries(input.player).sort(([a],[b])=>a.localeCompare(b)));
-  const fingerprint=hash(JSON.stringify({product_id:input.product_id,player}));
+  const fingerprint=hash(JSON.stringify({product_id:input.product_id,player,expected_price_usd:input.expected_price_usd}));
   const fallbackRate=await this.rate();
   const id=await this.db.transaction(async tx=>{
    // A transaction advisory lock serializes identical request keys across PostgreSQL API processes.
@@ -121,6 +125,7 @@ export class OrderService {
    await tx.query('SELECT game_id,zone FROM zone_settings ORDER BY game_id,zone FOR SHARE');
    await tx.query('SELECT id FROM shop_products WHERE id=$1 FOR SHARE',[input.product_id]);
    const q=await this.quote(tx,input.product_id,await resolveEffectiveFxRate(tx,fallbackRate));
+   if(input.expected_price_usd!==undefined&&q.publicQuote.price_usd!==input.expected_price_usd)throw new OrderError(409,'Selling price changed');
    const required=[...q.publicQuote.required_fields] as string[];
    if(Object.keys(player).length!==required.length||required.some(k=>typeof player[k]!=='string'||!/^\d{1,32}$/.test(player[k])))throw new OrderError(400,'Invalid player UID/Zone ID');
    const orderId=randomUUID();
@@ -130,11 +135,21 @@ export class OrderService {
    return orderId;
   });return this.read(id,input.token);
  }
+ async history(token:string){
+  if(!this.accounts)throw new OrderError(401,'Customer account required');
+  const customer=await this.accounts.authenticate(token);
+  const {rows}=await this.db.query(
+   'SELECT id,status,payment_verified,created_at,public_snapshot FROM orders WHERE customer_id=$1 ORDER BY created_at DESC,id DESC LIMIT 100',
+   [customer.id],
+  );
+  return rows.map(row=>({id:row.id,status:row.status,payment_verified:row.payment_verified,created_at:row.created_at,
+   name:row.public_snapshot.name,price_usd:row.public_snapshot.price_usd}));
+ }
  async read(id:string,token:string){
   const order=await this.owned(this.db,id,token);
   const messages=(await this.db.query(`SELECT id,sender,text,created_at FROM order_messages WHERE order_id=$1 AND visibility='public' ORDER BY id LIMIT 1000`,[id])).rows;
   const receipts=(await this.db.query('SELECT id,mime,size,created_at FROM order_receipts WHERE order_id=$1 ORDER BY created_at',[id])).rows;
-  return{id:order.id,status:order.status,details:order.public_snapshot,created_at:order.created_at,...(this.accounts?{}:{messages}),receipts};
+  return{id:order.id,status:order.status,payment_verified:order.payment_verified,slip_issue:order.status==='issue'?order.slip_issue??null:null,details:order.public_snapshot,created_at:order.created_at,...(this.accounts?{}:{messages}),receipts};
  }
  async message(id:string,token:string,text:string){
   if(!text.trim()||text.length>2000)throw new OrderError(400,'Message must be 1–2000 characters');
@@ -149,7 +164,7 @@ export class OrderService {
    if(!['awaiting_payment','payment_review','issue'].includes(order.status)||order.payment_verified)throw new OrderError(409,'Receipt not accepted in current status');
    if((await tx.query('SELECT COUNT(*)::INTEGER AS n FROM order_receipts WHERE order_id=$1',[id])).rows[0].n>=5)throw new OrderError(429,'Receipt limit reached');
    await tx.query('INSERT INTO order_receipts(id,order_id,path,mime,size) VALUES($1,$2,$3,$4,$5)',[file.id,id,file.path,file.mime,file.size]);
-   await tx.query("UPDATE orders SET status='payment_review',revision=revision+1 WHERE id=$1",[id]);
+   await tx.query("UPDATE orders SET status='payment_review',revision=revision+1,slip_issue=NULL WHERE id=$1",[id]);
   });return{accepted:true};
  }
  async expireAwaitingPayment(now=new Date()):Promise<string[]>{
@@ -179,13 +194,18 @@ export class OrderService {
    await tx.query('INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,$2,$3,$4)',[id,'admin',visibility,text.trim()]);
   });
  }
- async action(id:string,action:string,eventKey:string,context?:{actor:AdminActor;expectedRevision?:number}){
+ async action(id:string,action:string,eventKey:string,context?:{actor:AdminActor;expectedRevision?:number;slipIssue?:SlipIssueInput}){
   const actor=context?.actor??await this.telegramActor?.();
+  const issue=context?.slipIssue;
+  if(issue&&(action!=='issue'||!slipIssueReasons.includes(issue.reason)||typeof issue.customer_message!=='string'||
+    !issue.customer_message.trim()||issue.customer_message.length>1000||
+    (issue.internal_note!==undefined&&(typeof issue.internal_note!=='string'||issue.internal_note.length>1000))))throw new OrderError(400,'Invalid slip issue');
   await this.db.transaction(async tx=>{
    const order=(await tx.query('SELECT * FROM orders WHERE id=$1 FOR UPDATE',[id])).rows[0];if(!order)throw new OrderError(404,'Order not found');
-   const fingerprint=hash(JSON.stringify({id,action}));
+   const fingerprint=hash(JSON.stringify({id,action,...issue?{slip_issue:issue}:{}}));
    if(!(await tx.query('INSERT INTO telegram_events(event_key,event_hash) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING event_key',[eventKey,fingerprint])).rows.length){const previous=(await tx.query('SELECT event_hash FROM telegram_events WHERE event_key=$1',[eventKey])).rows[0];if(previous?.event_hash&&previous.event_hash!==fingerprint)throw new OrderError(409,'Idempotency conflict');return;}
    if(context?.expectedRevision!==undefined&&context.expectedRevision!==order.revision)throw new OrderError(409,'Order changed; refresh and retry');
+   if(issue&&(order.status!=='payment_review'||order.payment_verified))throw new OrderError(409,'Slip is no longer awaiting review');
    if(action==='accept'&&actor&&order.assigned_admin_id&&order.assigned_admin_id!==actor.id)throw new OrderError(409,'Order already assigned');
    let status:string,verified=order.payment_verified;
    if(action==='approve'&&order.status==='payment_review'){status='paid';verified=true;}
@@ -200,8 +220,18 @@ export class OrderService {
    else throw new OrderError(409,'Invalid payment/status transition');
    await tx.query('UPDATE orders SET status=$1,payment_verified=$2,revision=revision+1,assigned_admin_id=CASE WHEN $4 THEN $5 ELSE assigned_admin_id END WHERE id=$3',[status,verified,id,action==='accept'&&!!actor,actor?.id??null]);
    await tx.query(`INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,'system','internal',$2)`,[id,`Order status: ${status}`]);
+   if(issue){
+    const customerMessage=issue.customer_message.trim();
+    await tx.query('UPDATE orders SET slip_issue=$2 WHERE id=$1',[id,JSON.stringify({reason:issue.reason,customer_message:customerMessage})]);
+    const note=issue.internal_note?.trim();
+    if(note)await tx.query("INSERT INTO order_messages(order_id,sender,visibility,text) VALUES($1,'admin','internal',$2)",[id,note]);
+    if(this.accounts&&order.customer_id){
+     const room=(await tx.query('SELECT id FROM customer_chat_rooms WHERE customer_id=$1',[order.customer_id])).rows[0];
+     if(room)await recordAdminChatMessage(tx,room.id,customerMessage,'public','slip-issue:'+eventKey,{mirrorToTelegram:false});
+    }
+   }
    if(status==='completed')await this.enqueue(tx,id,'status',{status});
-   if(actor)await appendAudit(tx,actor,{action:'order.'+action,entityType:'order',entityId:id,before:{status:order.status,payment_verified:order.payment_verified,revision:order.revision},after:{status,payment_verified:verified,revision:order.revision+1}});
+   if(actor)await appendAudit(tx,actor,{action:'order.'+action,entityType:'order',entityId:id,before:{status:order.status,payment_verified:order.payment_verified,revision:order.revision},after:{status,payment_verified:verified,revision:order.revision+1,...issue?{slip_issue_reason:issue.reason}:{}}});
   });
  }
  async pending(){return(await this.db.query("SELECT * FROM telegram_outbox WHERE state='pending' ORDER BY created_at,id LIMIT 100")).rows;}
@@ -223,7 +253,7 @@ export class OrderService {
  async cursor(botKey:string){return Number((await this.db.query('SELECT next_offset FROM telegram_cursor WHERE bot_key=$1',[botKey])).rows[0]?.next_offset??0);}
  async advance(botKey:string,next:number){await this.db.query('INSERT INTO telegram_cursor(bot_key,next_offset) VALUES($1,$2) ON CONFLICT(bot_key) DO UPDATE SET next_offset=GREATEST(telegram_cursor.next_offset,EXCLUDED.next_offset)',[botKey,next]);}
  async adminRead(id:string){
-  const row=(await this.db.query('SELECT id,customer_id,status,payment_verified,revision,assigned_admin_id,public_snapshot,internal_snapshot,created_at FROM orders WHERE id=$1',[id])).rows[0];
+  const row=(await this.db.query('SELECT id,customer_id,status,payment_verified,revision,assigned_admin_id,public_snapshot,internal_snapshot,slip_issue,created_at FROM orders WHERE id=$1',[id])).rows[0];
   if(!row)throw new OrderError(404,'Order not found');
   return{...row,messages:(await this.db.query('SELECT id,sender,visibility,text,created_at FROM order_messages WHERE order_id=$1 ORDER BY id',[id])).rows,receipts:(await this.db.query('SELECT id,path,mime,size,created_at FROM order_receipts WHERE order_id=$1 ORDER BY created_at DESC,id DESC',[id])).rows};
  }

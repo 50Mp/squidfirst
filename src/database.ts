@@ -78,7 +78,8 @@ export class Repository {
     ]) await this.db.query(sql);
     for (const game of GAMES) {
       await this.db.query(`INSERT INTO games(id,name,source_url,required_fields) VALUES($1,$2,$3,$4)
-        ON CONFLICT(id) DO UPDATE SET required_fields=EXCLUDED.required_fields WHERE games.required_fields IS NULL`,
+        ON CONFLICT(id) DO UPDATE SET required_fields=EXCLUDED.required_fields
+        WHERE games.required_fields IS NULL OR games.required_fields = 'null'::jsonb`,
       [game.id,game.name,SOURCE,JSON.stringify(game.required_fields)]);
     }
     await initOperationalTables(this.db);

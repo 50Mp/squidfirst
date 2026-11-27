@@ -1,19 +1,103 @@
+import {StitchIcon} from '../components/stitch-icon';
 import {FxExample} from '../components/fx-example';
 import {ReadNotice} from '../components/read-notice';
-import {useEffect,useRef,useState} from 'react';import {Globe2,Coins,Package,Gamepad2,SlidersHorizontal,Settings2,History,Database,ChevronRight,CheckCircle2,ShieldCheck} from 'lucide-react';
-import {api,useResource,navigate,dateTime,key,refreshAll,confirmAction,dollars,type Row} from '../api';import {PageHeader,Panel,ErrorBox,Empty,Loading,Toggle,Field} from '../components';
+import {useEffect,useRef,useState} from 'react';
+import {api,useResource,dateTime,key,refreshAll,refreshAndWait,confirmAction,dollars,type Row} from '../api';import {PageHeader,Panel,ErrorBox,Empty,Loading,Field} from '../components';
 export {Store} from './store-hub';
-export function Sources(){
- const {data,error,loading}=useResource('/sources'),[busy,setBusy]=useState(''),[failure,setFailure]=useState('');
- async function toggle(s:Row,enabled:boolean){if(!enabled&&!await confirmAction('ปิด '+s.name+'?\nร้านนี้จะไม่ถูกดึงข้อมูลและไม่นำราคามาเลือกสำหรับออเดอร์ใหม่ ออเดอร์เดิมยังอยู่ครบ'))return;setBusy(s.id);setFailure('');try{await api('/sources/'+s.id,'PATCH',{enabled,expected_revision:s.revision,idempotency_key:key()});refreshAll();}catch(e:any){setFailure(e.message);}finally{setBusy('');}}
- async function sync(id:string){setBusy(id);setFailure('');try{await api('/sources/'+id+'/sync','POST',{idempotency_key:key()});refreshAll();}catch(e:any){setFailure(e.status===409?'ดึงได้เฉพาะ 15:00–16:00 (UTC+7) และร้านต้องเปิดใช้งาน โดยงานร้านเดียวกันไม่ซ้อนกัน':e.message);}finally{setBusy('');}}
- return <><PageHeader back="/store" title="ร้านต้นทาง" subtitle="เปิดเฉพาะร้านที่ต้องการใช้ดึงและเปรียบเทียบราคา"/><div className="notice">ดึงราคาเฉพาะ 15:00–16:00 (UTC+7) · เปิด–ปิดร้านได้ตลอดวัน</div><ReadNotice error={error} cached={!!data}/><ErrorBox message={failure}/>{loading&&!data?<Loading/>:data?.data.map((s:Row)=><Panel key={s.id}><div className="source-heading"><span className="source-initial">{s.id==='ggxg'?'GG':'JG'}</span><div><h2>{s.name}</h2><p>{new URL(s.url).hostname}</p></div><span className={'dot-label '+(s.enabled?'online':'offline')}>{s.enabled?'เปิดใช้งาน':'ปิดใช้งาน'}</span></div><Toggle label={s.enabled?'ดึงข้อมูลและใช้เปรียบเทียบราคา':'ไม่นำร้านนี้มาเลือกต้นทุน'} checked={s.enabled} disabled={loading||!!error||busy===s.id} onChange={v=>toggle(s,v)}/><div className="source-info"><span>อัปเดตล่าสุด <b>{dateTime(s.last_success_at)}</b></span><span>แพ็กเกจ <b>{s.package_count} รายการ</b></span></div>{s.last_run&&<p className="footnote">รอบล่าสุด: {s.last_run.status==='running'?'กำลังดึง':s.last_run.status==='failed'?'ดึงไม่สำเร็จ':'เสร็จแล้ว'} · {dateTime(s.last_run.at)}</p>}<button className="secondary" disabled={loading||!!error||!s.enabled||busy===s.id||s.last_run?.status==='running'} onClick={()=>sync(s.id)}>ดึงข้อมูลตอนนี้</button>{s.last_success_at&&Date.now()-new Date(s.last_success_at).getTime()>26*3600000&&<div className="notice">ข้อมูลเก่ากว่า 26 ชั่วโมง ตรวจราคาก่อนรับออเดอร์</div>}{s.last_run?.status==='failed'&&<ErrorBox message="รอบล่าสุดดึงข้อมูลไม่สำเร็จ ระบบเก็บราคาที่สำเร็จก่อนหน้าไว้"/>}<p className="footnote">การปิดร้านไม่เปลี่ยน Supplier หรือต้นทุนของออเดอร์เดิม</p></Panel>)}</>;
-}
+export {Sources} from './sources';
 export function ExchangeRate(){
- const {data,error,loading}=useResource('/fx'),history=useResource('/fx/history'),[mode,setMode]=useState('lfx'),[rate,setRate]=useState(''),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[failure,setFailure]=useState(''),[preview,setPreview]=useState<any>(null),[saved,setSaved]=useState(false),baseRevision=useRef<number>(0);
+ const {data,error,loading}=useResource('/fx'),history=useResource<{data:Row[]}>('/fx/history'),[mode,setMode]=useState('lfx'),[rate,setRate]=useState(''),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[failure,setFailure]=useState(''),[preview,setPreview]=useState<any>(null),[saved,setSaved]=useState(false),baseRevision=useRef<number>(0);
+ const saving=useRef(false);
+ const request=useRef<{signature:string;key:string}|undefined>(undefined);
  useEffect(()=>{if(data&&!dirty){baseRevision.current=data.revision;setMode(data.mode);setRate(data.rate?.lak_per_usd??'');}},[data,dirty]);
- async function save(){if(!data||loading||error||busy)return;if(!await confirmAction('บันทึกเรทสำหรับราคาและออเดอร์ใหม่?\nราคาและเรทของออเดอร์เดิมจะไม่เปลี่ยน'))return;setBusy(true);setFailure('');try{await api('/fx','PATCH',{mode,...mode==='manual'?{rate}:{},revision:baseRevision.current,idempotency_key:key()});setDirty(false);setSaved(true);setPreview(null);refreshAll();}catch(e:any){setFailure(e.message);}finally{setBusy(false);}}
+ async function save(){
+  if(!data||loading||error||saving.current)return;
+  saving.current=true;
+  setBusy(true);
+  try{
+   if(!await confirmAction('บันทึกเรทสำหรับราคาและออเดอร์ใหม่?\nราคาและเรทของออเดอร์เดิมจะไม่เปลี่ยน'))return;
+   setFailure('');
+   const input={mode,...mode==='manual'?{rate}:{},revision:baseRevision.current};
+   const signature=JSON.stringify(input);
+   if(request.current?.signature!==signature)request.current={signature,key:key()};
+   await api('/fx','PATCH',{...input,idempotency_key:request.current.key});
+   request.current=undefined;
+   await refreshAndWait();
+   setDirty(false);
+   setSaved(true);
+   setPreview(null);
+  }catch(e:any){setFailure(e.message);}
+  finally{saving.current=false;setBusy(false);}
+ }
  async function showPreview(){if(!data||loading||error||busy)return;setFailure('');try{setPreview(await api('/fx/preview','POST',{rate}));}catch(e:any){setFailure(e.message);}}
  const unavailable=!data||loading||!!error||busy;
- return <div className="stitch-fx"><PageHeader back="/store" title="อัตราแลกเปลี่ยน" subtitle="จัดการร้าน › กำหนดค่าเงิน"><button className="secondary" onClick={refreshAll}>รีเฟรชหน้าจอ</button></PageHeader><ReadNotice error={error} cached={!!data}/><ErrorBox message={failure}/>{loading&&!data?<Loading/>:data?<><Panel title="รูปแบบการใช้เรท"><fieldset className="fx-settings-fields" disabled={unavailable}><legend className="sr-only">ตั้งค่าอัตราแลกเปลี่ยน</legend><div className="mode-options"><label className={mode==='lfx'?'selected':''}><input type="radio" name="fx-mode" value="lfx" checked={mode==='lfx'} onChange={()=>{setMode('lfx');setDirty(true);setSaved(false);}}/><span><strong>อัตโนมัติจาก LFX</strong><small>ใช้ USD ช่วง 15:00–16:00 ที่ดึงมาเก็บล่าสุด</small></span></label><label className={mode==='manual'?'selected':''}><input type="radio" name="fx-mode" value="manual" checked={mode==='manual'} onChange={()=>{setMode('manual');setDirty(true);setSaved(false);}}/><span><strong>กำหนดเอง</strong><small>ใช้เรทนี้จนกว่าจะสลับกลับ LFX</small></span></label></div>{mode==='manual'&&<Field label="1 USD เท่ากับกี่ LAK"><div className="input-suffix"><input aria-label="เรท LAK ต่อ USD" inputMode="decimal" value={rate} onChange={e=>{setRate(e.target.value);setDirty(true);setSaved(false);}}/><span>LAK</span></div></Field>}{mode==='lfx'&&data.mode!=='lfx'&&<p className="notice">บันทึกโหมด LFX แล้วโหลดเรทล่าสุดก่อนทดลองคำนวณ</p>}<FxExample rate={mode==='manual'?rate:data.mode==='lfx'?data.rate?.lak_per_usd??'':''} disabled={unavailable}/><div className="button-row">{mode==='manual'&&<button className="secondary" onClick={showPreview}>ดูผลต่อราคาขาย</button>}<button className="primary" disabled={unavailable||!dirty} onClick={save}>บันทึกอัตราแลกเปลี่ยน</button></div></fieldset>{saved&&<p className="success-line"><CheckCircle2 size={16}/>บันทึกเรทแล้ว ออเดอร์เดิมยังใช้เรทเดิม</p>}</Panel><section className="rate-display"><span>เรทที่กำลังใช้ · {data?.mode==='manual'?'กำหนดเอง':'LFX'}</span><h2>1 USD <small>=</small> <strong>{data?.rate?Number(data.rate.lak_per_usd).toLocaleString('en-US',{maximumFractionDigits:6}):'—'}</strong> LAK</h2><p>{data?.mode==='manual'?'บันทึก':'ดึงข้อมูล'}ล่าสุด {dateTime(data?.rate?.provided_at??data?.rate?.fetched_at)}</p></section>{preview&&<Panel title="ตัวอย่างราคาก่อน–หลัง">{preview.data.length?preview.data.map((p:Row)=><div className="preview-line" key={p.id}><span>{p.name}</span><strong>{dollars(p.before.details?.price_usd)} → {dollars(p.after.details?.price_usd)}</strong></div>):<p className="muted">ยังไม่มีแพ็กเกจที่เผยแพร่ให้คำนวณตัวอย่าง</p>}</Panel>}<Panel title="ประวัติเรทล่าสุด"><ReadNotice error={history.error} cached={!!history.data}/>{history.loading&&!history.data?<Loading/>:history.data?history.data.data.length?history.data.data.slice(0,12).map((r:Row)=><div className="history-line" key={r.id}><span><strong>{r.origin==='lfx'?'LFX':'กำหนดเอง'}</strong><small>{dateTime(r.at)}</small></span><b>{Number(r.lak_per_usd).toLocaleString('en-US')} LAK</b></div>):<Empty title="ยังไม่มีประวัติเรท"/>:null}</Panel><p className="footnote">LFX ไม่ได้ระบุวันเผยแพร่ในข้อมูลที่ดึงมา เวลาที่แสดงคือเวลาดึงข้อมูลของระบบ</p></>:null}</div>;
+ const activeMode=data?.mode==='manual'?'กำหนดเอง':'LFX อัตโนมัติ';
+ const activeRate=data?.rate?.lak_per_usd;
+ const historyRows=history.data?.data.slice(0,12)??[];
+ return <div className="stitch-fx">
+  <PageHeader back="/store" backIcon="arrow_back_ios_new" title="อัตราแลกเปลี่ยน"/>
+  <div className="fx-toolbar">
+   <span><StitchIcon name="storefront" size={15}/>จัดการร้าน › กำหนดค่าเงิน</span>
+   <button className="secondary" onClick={refreshAll}><StitchIcon name="refresh" size={15}/>รีเฟรชหน้าจอ</button>
+  </div>
+  <ReadNotice error={error} cached={!!data}/>
+  <ErrorBox message={failure}/>
+  {loading&&!data?<Loading/>:data&&<>
+   <Panel title="รูปแบบการใช้เรท" aside={<small className="fx-mode-badge">ใช้งานอยู่ · {activeMode}</small>}>
+    <fieldset className="fx-settings-fields" disabled={unavailable}>
+     <legend className="sr-only">ตั้งค่าอัตราแลกเปลี่ยน</legend>
+     <div className="mode-options">
+      <label className={mode==='lfx'?'selected':''}>
+       <input type="radio" name="fx-mode" value="lfx" checked={mode==='lfx'} onChange={()=>{setMode('lfx');setDirty(true);setSaved(false);setPreview(null);}}/>
+       <span><strong>LFX อัตโนมัติ</strong><small>ใช้ USD ช่วง 15:00–16:00 ที่ดึงมาเก็บล่าสุด</small></span>
+      </label>
+      <label className={mode==='manual'?'selected':''}>
+       <input type="radio" name="fx-mode" value="manual" checked={mode==='manual'} onChange={()=>{setMode('manual');setDirty(true);setSaved(false);setPreview(null);}}/>
+       <span><strong>กำหนดเอง (Manual Override)</strong><small>ใช้เรทนี้จนกว่าจะสลับกลับ LFX</small></span>
+      </label>
+     </div>
+    </fieldset>
+   </Panel>
+   <Panel>
+    <div className="fx-card-heading"><h2><StitchIcon name="currency_exchange" size={18}/>เรทแลกเปลี่ยนปัจจุบันในระบบ</h2><span>{activeMode}</span></div>
+    <div className="rate-display">
+     <strong>1 USD = {activeRate?Number(activeRate).toLocaleString('en-US',{maximumFractionDigits:6}):'—'} LAK</strong>
+     <p>กีบลาว (LAK) ต่อ ดอลลาร์สหรัฐ (USD)</p>
+    </div>
+    <dl className="fx-facts">
+     <div><dt><StitchIcon name="schedule" size={15}/>รอบข้อมูล LFX</dt><dd>15:00–16:00 UTC+7</dd></div>
+     <div><dt>{data.mode==='manual'?'บันทึก':'ดึงข้อมูล'}ล่าสุด</dt><dd>{dateTime(data.rate?.provided_at??data.rate?.fetched_at)}</dd></div>
+    </dl>
+   </Panel>
+   <Panel>
+    <div className="fx-card-heading"><h2><StitchIcon name="tune" size={18}/>ปรับแต่งเรท</h2></div>
+    <fieldset className="fx-settings-fields" disabled={unavailable}>
+     <legend className="sr-only">ปรับแต่งและบันทึกเรท</legend>
+     {mode==='manual'&&<Field label="1 USD เท่ากับกี่ LAK"><div className="input-suffix">
+      <input aria-label="เรท LAK ต่อ USD" inputMode="decimal" value={rate} onChange={e=>{setRate(e.target.value);setDirty(true);setSaved(false);setPreview(null);}}/><span>LAK</span>
+     </div></Field>}
+     {mode==='lfx'&&data.mode!=='lfx'&&<p className="notice">บันทึกโหมด LFX แล้วโหลดเรทล่าสุดก่อนคำนวณ</p>}
+     <FxExample rate={mode==='manual'?rate:data.mode==='lfx'?activeRate??'':''} disabled={unavailable}/>
+     <div className="button-row">
+      {mode==='manual'&&<button className="secondary" onClick={showPreview}>ดูผลต่อราคาขาย</button>}
+      <button className="primary" disabled={unavailable||!dirty} onClick={save}>บันทึกอัตราแลกเปลี่ยน</button>
+     </div>
+    </fieldset>
+    {saved&&<p className="success-line"><StitchIcon name="check_circle" size={16}/>บันทึกเรทแล้ว ออเดอร์เดิมยังใช้เรทเดิม</p>}
+   </Panel>
+   {preview&&<Panel title="ตัวอย่างราคาก่อน–หลัง">
+    {preview.data.length?preview.data.map((p:Row)=><div className="preview-line" key={p.id}>
+     <span>{p.name}</span><strong>{dollars(p.before.details?.price_usd)} → {dollars(p.after.details?.price_usd)}</strong>
+    </div>):<p className="muted">ยังไม่มีแพ็กเกจที่เผยแพร่ให้คำนวณตัวอย่าง</p>}
+   </Panel>}
+   <Panel title="ประวัติการปรับเรทล่าสุด" aside={history.data&&<small className="fx-history-count">{historyRows.length} รายการล่าสุด</small>}>
+    <ReadNotice error={history.error} cached={!!history.data}/>
+    {history.loading&&!history.data?<Loading/>:history.data&&(historyRows.length?historyRows.map(r=><div className="history-line" key={r.id}>
+     <span><strong>{r.origin==='lfx'?'LFX อัตโนมัติ':'กำหนดเอง'}</strong><small><time dateTime={r.at}>{dateTime(r.at)}</time></small></span><b>{Number(r.lak_per_usd).toLocaleString('en-US',{maximumFractionDigits:6})} LAK</b>
+    </div>):<Empty title="ยังไม่มีประวัติเรท"/>)}
+    <a className="secondary fx-audit-link" href="#/store/audit?category=fx&from=fx">ดูกิจกรรมการเปลี่ยนเรท<StitchIcon name="chevron_right" size={16}/></a>
+   </Panel>
+   <p className="footnote">LFX ไม่ได้ระบุวันเผยแพร่ในข้อมูลที่ดึงมา เวลาที่แสดงคือเวลาดึงข้อมูลของระบบ</p>
+  </>}
+ </div>;
 }

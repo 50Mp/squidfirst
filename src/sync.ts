@@ -41,10 +41,14 @@ async function fxRun(repo: Repository, options: Options & {fetchQuote?:(signal:A
   return {status:'updated' as const,lak_per_usd:quote.lak_per_usd,fetched_at:fetchedAt.toISOString()};
 }
 
-async function tracked<T>(repo:Repository,source:string,now:Date,run:()=>Promise<T>){
+async function tracked<T extends {status:string}>(repo:Repository,source:string,now:Date,run:()=>Promise<T>){
  if(!inSyncWindow(now)||!repo.beginSync)return run();
  const id=await repo.beginSync(source);if(!id)return{status:'skipped' as const,reason:'Sync already running',source};
- try{const result=await run();await repo.finishSync(id,'completed',result);return result;}catch(error){await repo.finishSync(id,'failed',{reason:'Fetch or validation failed; previous snapshot retained'});throw error;}
+ try{
+  const result=await run();
+  await repo.finishSync(id,result.status==='skipped'?'skipped':'completed',result);
+  return result;
+ }catch(error){await repo.finishSync(id,'failed',{reason:'Fetch or validation failed; previous snapshot retained'});throw error;}
 }
 export function syncOnce(repo:Repository,sourceId='jorjee',options:Parameters<typeof catalogRun>[2]={}){return tracked(repo,sourceId,(options.now??(()=>new Date()))(),()=>catalogRun(repo,sourceId,options));}
 export function syncFxOnce(repo:Repository,options:Parameters<typeof fxRun>[1]={}){return tracked(repo,'lfx',(options.now??(()=>new Date()))(),()=>fxRun(repo,options));}

@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Squid first Admin",
+    "slug": "squidfirst-admin",
+    "platforms": ["web"],
+    "userInterfaceStyle": "light",
+    "web": { "bundler": "metro", "output": "single" },
+    "experiments": { "baseUrl": "/admin-app-expo" }
+  }
+}

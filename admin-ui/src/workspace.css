@@ -103,9 +103,6 @@ main>*,.main-wrap,.overview-columns>section { min-width:0; }
 .fx-example h3 { display:flex; align-items:center; gap:8px; color:var(--primary); font-size:1rem; }
 .fx-example p { font-size:.8125rem; color:var(--muted); margin:8px 0 16px; }
 .fx-example .field { margin-bottom:12px; }
-.fx-example-amounts { display:flex; gap:8px; flex-wrap:wrap; }
-.fx-example-amounts button { min-height:44px; min-width:44px; border-radius:10px; padding:8px 12px; background:white; color:var(--primary); font-size:.8125rem; }
-.fx-example-amounts button[aria-pressed="true"] { color:white; background:var(--primary); }
 .fx-example output { display:block; margin-top:16px; font-weight:700; font-size:1.5rem; color:var(--primary); overflow-wrap:anywhere; }
 .chat-message-mode { display:grid; grid-template-columns:1fr 1fr; gap:4px; border:0; border-radius:12px; background:var(--primary-soft); padding:4px; margin:0 0 12px; min-inline-size:0; }
 .chat-message-mode label { position:relative; display:flex; justify-content:center; align-items:center; gap:7px; min-height:44px; padding:8px; border-radius:9px; font-size:.8125rem; color:var(--muted); cursor:pointer; }

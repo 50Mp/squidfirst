@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type { Database } from './database.js';
 import type { Accounts } from './accounts.js';
 import { OrderError } from './orders.js';
+import type {ChatAttachment} from './chat-attachment.js';
 
 export class CustomerChat{
  constructor(private db:Database,private accounts:Accounts){}
  async init(){for(const sql of [
   `CREATE TABLE IF NOT EXISTS customer_chat_messages(id BIGSERIAL PRIMARY KEY,room_id TEXT REFERENCES customer_chat_rooms(id),sender TEXT NOT NULL,visibility TEXT NOT NULL,text TEXT NOT NULL,client_key TEXT,event_key TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(room_id,client_key))`,
+  `ALTER TABLE customer_chat_messages ADD COLUMN IF NOT EXISTS attachment JSONB`,
   `CREATE TABLE IF NOT EXISTS customer_chat_jobs(id TEXT PRIMARY KEY,room_id TEXT REFERENCES customer_chat_rooms(id),message_id BIGINT UNIQUE REFERENCES customer_chat_messages(id),state TEXT NOT NULL DEFAULT 'pending',attempts INTEGER NOT NULL DEFAULT 0,next_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),lease_until TIMESTAMPTZ)`,
   `CREATE INDEX IF NOT EXISTS customer_chat_history ON customer_chat_messages(room_id,id)`,
   `ALTER TABLE customer_chat_rooms ADD COLUMN IF NOT EXISTS order_icon_state TEXT`,
@@ -16,8 +18,18 @@ export class CustomerChat{
  ])await this.db.query(sql);}
  async read(token:string,after=0){
   const user=await this.accounts.authenticate(token);
-  const messages=(await this.db.query(`SELECT id,sender,text,created_at FROM customer_chat_messages WHERE room_id=$1 AND visibility='public' AND id>$2 ORDER BY id LIMIT 200`,[user.room_id,after])).rows;
+  const messages=(await this.db.query(`SELECT id,sender,text,created_at,attachment - 'data' AS attachment FROM customer_chat_messages WHERE room_id=$1 AND visibility='public' AND id>$2 ORDER BY id LIMIT 200`,[user.room_id,after])).rows;
   return{room_id:user.room_id,messages,next_cursor:messages.at(-1)?.id??after};
+ }
+ async attachment(roomId:string,messageId:string,publicOnly:boolean):Promise<ChatAttachment>{
+  if(!/^[0-9]{1,18}$/.test(messageId))throw new OrderError(404,'Attachment not found');
+  const row=(await this.db.query(`SELECT attachment FROM customer_chat_messages WHERE room_id=$1 AND id=$2 AND (NOT $3::boolean OR visibility='public')`,[roomId,messageId,publicOnly])).rows[0];
+  if(!row?.attachment)throw new OrderError(404,'Attachment not found');
+  return row.attachment;
+ }
+ async customerAttachment(token:string,messageId:string){
+  const user=await this.accounts.authenticate(token);
+  return this.attachment(user.room_id,messageId,true);
  }
  async customerMessage(token:string,text:string,clientKey:string){
   if(typeof text!=='string'||!text.trim()||text.length>2000||!/^[A-Za-z0-9_-]{8,100}$/.test(clientKey))throw new OrderError(400,'Invalid chat message');
@@ -57,7 +69,7 @@ export class CustomerChat{
  async claim(){return this.db.transaction(async tx=>{
   const job=(await tx.query("SELECT * FROM customer_chat_jobs WHERE (state='pending' AND next_at<=NOW()) OR (state='sending' AND lease_until<NOW()) ORDER BY message_id LIMIT 1 FOR UPDATE SKIP LOCKED")).rows[0];
   if(!job)return null;await tx.query("UPDATE customer_chat_jobs SET state='sending',attempts=attempts+1,lease_until=NOW()+INTERVAL '90 seconds' WHERE id=$1",[job.id]);
-  const msg=(await tx.query('SELECT text,sender,visibility FROM customer_chat_messages WHERE id=$1',[job.message_id])).rows[0];return{...job,text:msg.sender==='admin'?`${msg.visibility==='internal'?'🔒 บันทึกภายใน':'🛠 แอดมิน (Mini App)'}\n${msg.text}`:msg.text};
+  const msg=(await tx.query('SELECT text,sender,visibility,attachment FROM customer_chat_messages WHERE id=$1',[job.message_id])).rows[0];return{...job,attachment:msg.attachment as ChatAttachment|null,text:msg.sender==='admin'?`${msg.visibility==='internal'?'🔒 บันทึกภายใน':'🛠 แอดมิน (Mini App)'}\n${msg.text}`:msg.text};
  });}
  async delivered(id:string){await this.db.query("UPDATE customer_chat_jobs SET state='sent',lease_until=NULL WHERE id=$1",[id]);}
  async failed(id:string){await this.db.query("UPDATE customer_chat_jobs SET state=CASE WHEN attempts>=10 THEN 'failed' ELSE 'pending' END,next_at=NOW()+INTERVAL '30 seconds',lease_until=NULL WHERE id=$1",[id]);}

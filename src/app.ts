@@ -12,6 +12,7 @@ import type { CustomerChat } from './customer-chat.js';
 import { accountRoutes } from './account-routes.js';
 import {adminRoutes,type AdminContext} from './admin/routes.js';
 import {adminStatic} from './admin/static.js';
+import {buyerStatic} from './buyer-static.js';
 
 export function buildApp(repo: Repository, apiKey?: string,orders?:OrderService,fileRoot?:string,acceptOrders=true,accounts?:Accounts,chat?:CustomerChat,admin?:AdminContext) {
   const app = Fastify({ logger: { redact: ['req.headers.x-api-key', 'req.headers.authorization','req.headers.cookie','req.headers.x-csrf-token'] } });
@@ -24,6 +25,7 @@ export function buildApp(repo: Repository, apiKey?: string,orders?:OrderService,
     }
   });
   if(admin){app.register(async routes=>adminRoutes(routes,admin));adminStatic(app);}
+  if(orders&&accounts&&chat)buyerStatic(app);
   app.setErrorHandler((error, request, reply) => {
     if(error instanceof OrderError)return reply.code(error.statusCode).send({error:error.message});
     if (error instanceof Error && 'validation' in error) return reply.code(400).send({ error: 'Invalid request' });

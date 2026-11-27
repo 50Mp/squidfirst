@@ -24,10 +24,11 @@ export function orderRoutes(app:FastifyInstance,orders:OrderService,adminConfigu
    offer_ids:{type:'array',minItems:1,maxItems:50,items:{type:'string',maxLength:100}},markup_bps:{type:'integer',minimum:0,maximum:10000,default:1000},confirmed_equivalent:{const:true},
   }}},
  },async(req,reply)=>{if(!adminConfigured)throw new OrderError(503,'Configure API_KEY before publishing');return reply.code(201).send(await orders.publish(req.body));});
- app.post<{Body:{product_id:string;player:Record<string,string>}}>('/orders',{
-  config:writeConfig,schema:{body:{type:'object',additionalProperties:false,required:['product_id','player'],properties:{product_id:{type:'string',maxLength:100},player:{type:'object',minProperties:1,maxProperties:2,additionalProperties:{type:'string',maxLength:32}}}}},
+ if(accountRooms)app.get('/orders',{config:publicConfig},async(req,reply)=>reply.header('Cache-Control','private, no-store').send({data:await orders.history(token(req))}));
+ app.post<{Body:{product_id:string;player:Record<string,string>;expected_price_usd?:string}}>('/orders',{
+  config:writeConfig,schema:{body:{type:'object',additionalProperties:false,required:['product_id','player'],properties:{product_id:{type:'string',maxLength:100},expected_price_usd:{type:'string',pattern:'^[0-9]{1,8}[.][0-9]{2}$'},player:{type:'object',minProperties:1,maxProperties:2,additionalProperties:{type:'string',maxLength:32}}}}},
  },async(req,reply)=>{if(!acceptOrders)throw new OrderError(503,'Ordering is not enabled yet');const key=req.headers['idempotency-key'];if(typeof key!=='string')throw new OrderError(400,'Idempotency-Key is required');return reply.code(201).send(await orders.create({...req.body,token:token(req),idempotency_key:key}));});
- app.get<{Params:{id:string}}>('/orders/:id',{config:publicConfig},req=>orders.read(req.params.id,token(req)));
+ app.get<{Params:{id:string}}>('/orders/:id',{config:publicConfig},async(req,reply)=>reply.header('Cache-Control','private, no-store').send(await orders.read(req.params.id,token(req))));
  app.post<{Params:{id:string};Body:{text:string}}>('/orders/:id/messages',{
   config:writeConfig,schema:{body:{type:'object',required:['text'],additionalProperties:false,properties:{text:{type:'string',minLength:1,maxLength:2000}}}},
  },req=>{if(accountRooms)throw new OrderError(410,'Use /chat/messages: conversations belong to customer accounts, not orders');return orders.message(req.params.id,token(req),req.body.text);});

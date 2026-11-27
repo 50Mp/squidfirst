@@ -8,6 +8,7 @@ import type {AdminService} from '../../src/admin/service.js';
 import type {CustomerChat} from '../../src/customer-chat.js';
 import type {Database,Repository} from '../../src/database.js';
 import {GAMES,PUBG,type Snapshot} from '../../src/catalog.js';
+import {windowBounds} from '../../src/schedule.js';
 
 const packages=[
  {game:'free-fire',name:'1,080 + 108 Diamonds',price:'10.00',cost:204000,zone:'th',source:'ggxg'},
@@ -63,19 +64,36 @@ export async function seedDesignPreview({db,repo,accounts,chat,service,actor,dir
  db:Database;repo:Repository;accounts:Accounts;chat:CustomerChat;service:AdminService;actor:AdminActor;directory:string;
 }){
  const rate='22675.43';
- const observedAt=new Date().toISOString();
+ const now=new Date(),today=windowBounds(now);
+ const lastWindow=now>=today.close?today:windowBounds(new Date(now.getTime()-86400000));
+ const open=lastWindow.open.getTime();
+ const runs=[
+  {supplier:'ggxg',status:'completed',start:open-86400000+9*60000,finish:open-86400000+10*60000},
+  {supplier:'jorjee',status:'completed',start:open+5*60000,finish:open+6*60000},
+  {supplier:'ggxg',status:'failed',start:open+12*60000,finish:open+13*60000},
+ ] as const;
  const supplierGames=JSON.parse(await readFile(new URL('./jorjee-preview-games.json',import.meta.url),'utf8')) as {id:string;name:string}[];
  for(const game of supplierGames){
   await db.query('INSERT INTO games(id,name,source_url) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[game.id,game.name,'https://jorjeegamestore.com/']);
  }
- await repo.save(supplierCatalog(1.04),observedAt,'live','jorjee');
- await repo.save(supplierCatalog(1),observedAt,'live','ggxg');
+ for(const {supplier,status,start,finish} of runs){
+  const finishedAt=new Date(finish).toISOString();
+  if(status==='completed')await repo.save(supplierCatalog(supplier==='jorjee'?1.04:1),finishedAt,'live',supplier);
+  await db.query('INSERT INTO sync_runs (id,source_id,status,created_at,finished_at,result) VALUES ($1,$2,$3,$4,$5,$6)',[
+   randomUUID(),supplier,status,new Date(start).toISOString(),finishedAt,
+   JSON.stringify({preview:true,reason:status==='failed'?'Supplier request timed out; previous prices retained':undefined}),
+  ]);
+ }
  await service.settings.setFx(actor,{mode:'manual',rate,revision:1,idempotency_key:randomUUID()});
  await service.settings.setConfig(actor,'payments',{
   instructions:'ข้อมูลสำหรับพรีวิวเท่านั้น กรุณาอย่าโอนเงินจริง',
   accounts:[{bank:'ธนาคารตัวอย่าง',name:'Squid First Demo',number:'DEMO-ONLY'}],
  },1,randomUUID());
  const customers=await Promise.all(['demo_somchai','demo_may','demo_natt','demo_anon'].map(name=>accounts.register(name,randomUUID())));
+ const profilePhoto=await readFile(new URL('./stitch-profile-avatar.jpg',import.meta.url));
+ await db.query('UPDATE customer_accounts SET display_name=$1,avatar_data_url=$2,verified_at=NOW() WHERE id=$3',[
+  'Somchai K.','data:image/jpeg;base64,'+profilePhoto.toString('base64'),customers[0].user.id,
+ ]);
  for(const [index,entry] of customers.entries()){
   const texts=['โอนเงินแล้วครับ ช่วยตรวจสลิปให้หน่อยครับ','รับออเดอร์แล้วใช่ไหมคะ','ได้รับไอเทมเรียบร้อย ขอบคุณครับ','ขอตรวจ UID และเซิร์ฟเวอร์หน่อยครับ'];
   await chat.customerMessage(entry.token,texts[index],'design-chat-'+randomUUID());

@@ -3,6 +3,8 @@
 Baseline d65fc6f · 23 November 2026 · Stitch project 9946906478898127464.
 Current metadata, HTML and screenshots for 11 canonical references were retrieved and visually inspected in this execution. Local source artifacts are under `.stitch/2026-11-23/phase-one-source/` and remain excluded from Git.
 
+Use the [mobile Flow index](mobile-flow-index.md) for the current Flow A–H codes and the overview state frames.
+
 ## First-release flow ownership
 
 | Flow / device | Canonical screen | Route / component | API | States and next task |
@@ -59,7 +61,7 @@ Use the following mapping for the current mobile build. The table above remains 
 
 | Route / surface | Current reference or fallback | 390px browser evidence |
 | --- | --- | --- |
-| `/` | Approved iOS overview `d5331699295f43b497b546a572dab403` | `overview.png` |
+| `/` | Owner withdrew `d5331699295f43b497b546a572dab403`. Confirm the active mobile frame before visual acceptance. `286614df1ad24d4596786fa3d4082396` is the earlier documented reference. | `overview.png` is historical evidence |
 | `/orders` | Orders & Fulfillment `79e6a382460b44b69a44a657a39c0666` | `orders.png` and `artifacts/stitch-orders-mobile.png` for differing states |
 | `/orders/:id` and receipt | iOS order detail `ce52fcf417844c76bc6e840aa8cee3aa`, slip viewer `0e7532b364404d7ca7d36022c80c8b61` | `order-detail.png`; image/PDF dialog exercised by the browser suite |
 | `/chats`, `/chats/:id`, `/customers/:id` | Chat list `62738ab1d11d4ed389259548d612189d`, conversation `437e4d2539c544c08294739d89c7d6b8`, profile `cfdddd9508d14eefabde4eb855a78b86` | `chats.png`, `conversation.png`, `customer.png` |

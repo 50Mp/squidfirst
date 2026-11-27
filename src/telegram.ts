@@ -247,7 +247,20 @@ export async function runTelegram(service:OrderService,config:TelegramConfig,sig
       chatJob=await chat.claim();
       if(chatJob){
        let topicId=await ensureTopic(chatJob.room_id);
-       const send=()=>api.call('sendMessage',{chat_id:config.chatId,message_thread_id:Number(topicId),text:chatJob.text,reply_markup:{inline_keyboard:[[{text:'👤 รายละเอียดลูกค้า',callback_data:`c:${chatJob.room_id}:issue:0`}]]}});
+       const send=()=>{
+        const reply_markup={inline_keyboard:[[{text:'👤 รายละเอียดลูกค้า',callback_data:`c:${chatJob.room_id}:issue:0`}]]};
+        const file=chatJob.attachment;
+        if(!file)return api.call('sendMessage',{chat_id:config.chatId,message_thread_id:Number(topicId),text:chatJob.text,reply_markup});
+        const form=new FormData();
+        form.set('chat_id',config.chatId);
+        form.set('message_thread_id',String(topicId));
+        form.set('reply_markup',JSON.stringify(reply_markup));
+        const text=String(chatJob.text).trim();
+        const caption=text.length<=1024?text:text.slice(0,990).replace(/[\uD800-\uDBFF]$/,'')+'… (อ่านข้อความเต็มใน Mini App)';
+        form.set('caption',caption);
+        form.set('document',new Blob([Buffer.from(file.data,'base64')],{type:file.mime}),file.name);
+        return api.call('sendDocument',form);
+       };
        try{await send();}catch(error){topicId=await recoverCustomerTopic(chat,config,api,chatJob.room_id,topicId,error,()=>ensureTopic(chatJob.room_id));await send();}
        await chat.delivered(chatJob.id);continue;
       }

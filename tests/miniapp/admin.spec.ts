@@ -1,19 +1,96 @@
 import {test,expect,type Page} from '@playwright/test';import {createHmac,randomUUID} from 'node:crypto';
-import {mkdir} from 'node:fs/promises';
+import {mkdir,readFile} from 'node:fs/promises';
 async function open(page:Page,user=123){const fields=new URLSearchParams({auth_date:String(Math.floor(Date.now()/1000)),user:JSON.stringify({id:user}),query_id:randomUUID()});const secret=createHmac('sha256','WebAppData').update('123:fake-browser-only').digest();fields.set('hash',createHmac('sha256',secret).update([...fields.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('\n')).digest('hex'));await page.route('https://telegram.org/js/**',r=>r.fulfill({contentType:'application/javascript',body:`window.Telegram={WebApp:{initData:${JSON.stringify(fields.toString())},ready(){},expand(){},setHeaderColor(){},setBackgroundColor(){},showConfirm(t,cb){cb(true)}}}` }));await page.goto('/admin-app/');}
+test('buyer and admin chat share messages and keep internal notes private',async({page,browser})=>{
+ const customerContext=await browser.newContext({baseURL:'http://127.0.0.1:3101',viewport:{width:390,height:844}});
+ try{
+  const customer=await customerContext.newPage();
+  const username='chat_ui_'+randomUUID().slice(0,8);
+  const incoming='ช่วยตรวจสถานะออเดอร์ให้หน่อยครับ';
+  const reply='รับข้อความแล้ว กำลังตรวจสอบให้ครับ';
+  const note='บันทึกทดสอบเฉพาะแอดมิน';
+  const profileNote='บันทึกเพิ่มเติมจากโปรไฟล์ '+randomUUID();
+  await customer.goto('/buyer/#account');
+  await customer.getByLabel('ชื่อผู้ใช้').fill(username);
+  await customer.getByLabel('รหัสผ่าน').fill(randomUUID());
+  await customer.getByRole('button',{name:'สมัครบัญชี'}).click();
+  await expect(customer.getByRole('button',{name:'ออกจากระบบ'})).toBeVisible();
+  await customer.getByRole('link',{name:'หน้าหลัก',exact:true}).click();
+  await customer.getByLabel('ข้อความ',{exact:true}).fill(incoming);
+  await customer.getByRole('button',{name:'ส่งข้อความ'}).click();
+  await expect(customer.getByRole('log')).toContainText(incoming);
+
+  await page.setViewportSize({width:390,height:844});
+  await open(page);
+  await expect(page.getByRole('heading',{name:'ภาพรวม'})).toBeVisible();
+  const navigation=page.getByRole('navigation',{name:'เมนูหลัก'});
+  const chatBadge=navigation.getByRole('button',{name:'แชท',exact:true}).locator('.nav-badge');
+  const shortcut=page.getByRole('button',{name:'แชทลูกค้า',exact:true});
+  const unread=(await (await page.request.get('/admin/v1/navigation')).json()).unread_chat_rooms;
+  expect(unread).toBeGreaterThan(0);
+  await expect(shortcut.locator('.shortcut-count')).toHaveText(String(unread));
+  await expect(chatBadge).toHaveText(String(unread));
+  await shortcut.click();
+  const unreadFilter=page.getByRole('button',{name:/^ยังไม่อ่าน/});
+  await expect(unreadFilter).toHaveText('ยังไม่อ่าน '+unread);
+  await unreadFilter.click();
+  await expect(page.locator('.chat-card')).toHaveCount(unread);
+  await page.getByLabel('ค้นหาลูกค้า').fill(username);
+  await expect(unreadFilter).toHaveText('ยังไม่อ่าน 1');
+  const card=page.locator('.chat-card').filter({hasText:username});
+  await expect(card).toContainText(incoming);
+  await expect(card).toContainText('ยังไม่อ่าน 1');
+  await card.getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();
+  await expect(page.locator('.bubble')).toContainText([incoming]);
+  await page.getByLabel('ข้อความแชท').fill(reply);
+  await page.getByRole('button',{name:'ส่งข้อความ'}).click();
+  await expect(page.getByText(reply,{exact:true})).toBeVisible();
+  await page.getByRole('radio',{name:'บันทึกภายใน · ลูกค้าไม่เห็น',exact:true}).check();
+  await page.getByLabel('ข้อความแชท').fill(note);
+  await page.getByRole('button',{name:'ส่งข้อความ'}).click();
+  await expect(page.locator('.bubble.internal')).toContainText(note);
+  await page.getByRole('button',{name:'รายละเอียดลูกค้า'}).click();
+  const noteField=page.locator('.profile-note textarea');
+  await expect(noteField).toHaveValue(note);
+  await noteField.fill(profileNote);
+  await page.getByRole('button',{name:'บันทึกข้อความภายใน'}).click();
+  await expect(page.locator('.profile-note').getByRole('status')).toHaveText('บันทึกแล้ว');
+  await page.getByRole('button',{name:'เปิดห้องแชท',exact:true}).click();
+  await expect(page.locator('.bubble.internal').getByText(profileNote,{exact:true})).toBeVisible();
+  await expect(page.locator('.bubble.internal').getByText(note,{exact:true})).toBeVisible();
+  await page.goto('/admin-app/#/chats');
+  await expect(unreadFilter).toHaveText('ยังไม่อ่าน 0');
+  await expect(card).toHaveCount(0);
+  await page.getByRole('button',{name:/^ทั้งหมด/}).click();
+  await expect(card).toContainText('อ่านแล้ว');
+  await navigation.getByRole('button',{name:'ภาพรวม',exact:true}).click();
+  if(unread>1){
+   await expect(shortcut.locator('.shortcut-count')).toHaveText(String(unread-1));
+   await expect(chatBadge).toHaveText(String(unread-1));
+  }else{
+   await expect(shortcut.locator('.shortcut-count')).toHaveCount(0);
+   await expect(chatBadge).toHaveCount(0);
+  }
+  await customer.reload();
+  await expect(customer.getByRole('log')).toContainText(incoming);
+  await expect(customer.getByRole('log')).toContainText(reply);
+  await expect(customer.getByRole('log')).not.toContainText(note);
+  await expect(customer.getByRole('log')).not.toContainText(profileNote);
+ }finally{await customerContext.close();}
+});
 test('normal browser and non-owner cannot view admin data',async({page})=>{await page.route('https://telegram.org/js/**',r=>r.fulfill({body:''}));await page.goto('/admin-app/');await expect(page.getByText('เฉพาะบัญชีแอดมินที่ได้รับสิทธิ์')).toBeVisible();await open(page,999);await expect(page.getByRole('alert')).toBeVisible();await expect(page.getByRole('navigation')).toHaveCount(0);});
-test('owner queue → receipt → accept/start/complete/reopen; chat and profiles stay per player',async({page})=>{await open(page);await expect(page.getByRole('heading',{name:'ภาพรวม'})).toBeVisible();await page.getByRole('navigation').getByRole('button',{name:'ออเดอร์',exact:true}).click();await page.getByRole('row').filter({hasText:'player1'}).locator('.order-card-summary').click();await expect(page.getByAltText('สลิปชำระเงินของออเดอร์')).toBeVisible();await page.getByAltText('สลิปชำระเงินของออเดอร์').click();await expect(page.getByRole('dialog',{name:'สลิปชำระเงินขนาดเต็ม'})).toBeVisible();await page.getByRole('button',{name:'ปิดสลิป',exact:true}).click();await page.getByRole('button',{name:'ยืนยันรับเงินแล้ว',exact:true}).click();await page.getByRole('button',{name:'รับงาน',exact:true}).click();await page.getByRole('button',{name:'เริ่มเติม',exact:true}).click();await page.getByRole('button',{name:'เติมสำเร็จ',exact:true}).click();await page.getByRole('button',{name:'กลับไปกำลังเติม',exact:true}).click();await expect(page.getByRole('button',{name:'เติมสำเร็จ',exact:true})).toBeVisible();await page.getByRole('button',{name:'เปิดห้องแชทลูกค้า'}).click();await expect(page.getByRole('heading',{name:'player1',exact:true})).toBeVisible();await page.getByLabel('ข้อความแชท').fill('ตอบจาก Mini App');await page.getByLabel('ข้อความแชท').press('Enter');await expect(page.locator('.bubble').getByText('ตอบจาก Mini App',{exact:true})).toBeVisible();await page.getByLabel('ข้อความแชท').fill('บรรทัดแรก');await page.getByLabel('ข้อความแชท').press('Shift+Enter');await expect(page.getByLabel('ข้อความแชท')).toHaveValue('บรรทัดแรก\n');await page.getByLabel('ข้อความแชท').fill('');await page.getByRole('radio',{name:'บันทึกภายใน · ลูกค้าไม่เห็น',exact:true}).check();await page.getByLabel('ข้อความแชท').fill('บันทึกเฉพาะแอดมิน');await page.getByRole('button',{name:'ส่งข้อความ'}).click();await expect(page.locator('.bubble.internal').getByText('บันทึกเฉพาะแอดมิน')).toBeVisible();await expect(page.getByText('ข้อความจาก Player 2',{exact:true})).toHaveCount(0);await page.getByRole('button',{name:'รายละเอียดลูกค้า'}).click();await expect(page.getByRole('heading',{name:'player1',level:1})).toBeVisible();await expect(page.getByText('ออเดอร์ทั้งหมด',{exact:true})).toBeVisible();});
-test('sources and FX settings update real backend with CSRF and revision',async({page})=>{await open(page);await page.goto('/admin-app/#/store/sources');const source=page.locator('.panel').filter({has:page.getByRole('heading',{name:'JorJee Game Store'})});await source.getByRole('switch').click();await expect(source.getByRole('switch')).not.toBeChecked();await source.getByRole('switch').click();await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'กำหนดเอง',exact:false}).check();await page.getByLabel('เรท LAK ต่อ USD').fill('23000');await page.getByRole('button',{name:'ดูผลต่อราคาขาย'}).click();await expect(page.getByRole('heading',{name:'ตัวอย่างราคาก่อน–หลัง'})).toBeVisible();await page.getByRole('button',{name:'บันทึกอัตราแลกเปลี่ยน'}).click();await expect(page.getByText('บันทึกเรทแล้ว ออเดอร์เดิมยังใช้เรทเดิม')).toBeVisible();await page.reload();await expect(page.getByRole('radio',{name:'กำหนดเอง',exact:false})).toBeChecked();await expect(page.getByLabel('เรท LAK ต่อ USD')).toHaveValue('23000');});
+test('owner queue → receipt → accept/start/complete/reopen; chat and profiles stay per player',async({page})=>{await open(page);await expect(page.getByRole('heading',{name:'ภาพรวม'})).toBeVisible();await page.getByRole('navigation').getByRole('button',{name:'ออเดอร์',exact:true}).click();await page.getByRole('row').filter({hasText:'player1'}).locator('.order-card-summary').click();await expect(page.getByAltText('สลิปชำระเงินของออเดอร์')).toBeVisible();await page.getByAltText('สลิปชำระเงินของออเดอร์').click();await expect(page.getByRole('dialog',{name:'สลิปชำระเงินขนาดเต็ม'})).toBeVisible();await page.getByRole('button',{name:'ปิดสลิป',exact:true}).click();await page.getByRole('button',{name:'ยืนยันรับเงินแล้ว',exact:true}).click();await page.getByRole('button',{name:'รับงาน',exact:true}).click();await page.getByRole('button',{name:'เริ่มเติม',exact:true}).click();await page.getByRole('button',{name:'เติมสำเร็จ',exact:true}).click();await page.getByRole('button',{name:'กลับไปกำลังเติม',exact:true}).click();await expect(page.getByRole('button',{name:'เติมสำเร็จ',exact:true})).toBeVisible();await page.getByRole('button',{name:'เปิดห้องแชทลูกค้า'}).click();await expect(page.getByRole('heading',{name:'player1',exact:true})).toBeVisible();await page.getByLabel('ข้อความแชท').fill('ตอบจาก Mini App');await page.getByLabel('ข้อความแชท').press('Enter');await expect(page.locator('.bubble').getByText('ตอบจาก Mini App',{exact:true})).toBeVisible();await page.getByLabel('ข้อความแชท').fill('บรรทัดแรก');await page.getByLabel('ข้อความแชท').press('Shift+Enter');await expect(page.getByLabel('ข้อความแชท')).toHaveValue('บรรทัดแรก\n');await page.getByLabel('ข้อความแชท').fill('');await page.getByRole('radio',{name:'บันทึกภายใน · ลูกค้าไม่เห็น',exact:true}).check();await page.getByLabel('ข้อความแชท').fill('บันทึกเฉพาะแอดมิน');await page.getByRole('button',{name:'ส่งข้อความ'}).click();await expect(page.locator('.bubble.internal').getByText('บันทึกเฉพาะแอดมิน')).toBeVisible();await expect(page.locator('.chat-messages').getByText('ข้อความจาก Player 2',{exact:true})).toHaveCount(0);await page.getByRole('button',{name:'รายละเอียดลูกค้า'}).click();await expect(page.getByRole('heading',{name:'player1',level:1})).toBeVisible();await expect(page.getByText('ออเดอร์ทั้งหมด',{exact:true})).toBeVisible();});
+test('sources and FX settings update real backend with CSRF and revision',async({page})=>{await open(page);await page.setViewportSize({width:1280,height:900});await page.goto('/admin-app/#/store/sources');const suppliers=page.getByRole('table',{name:'รายชื่อซัพพลายเออร์'});await suppliers.getByRole('button',{name:'JorJee Game Store',exact:true}).click();const source=page.getByRole('complementary',{name:'รายละเอียดซัพพลายเออร์'});await expect(source.getByRole('heading',{name:'JorJee Game Store',exact:true})).toBeVisible();await source.getByRole('switch').click();await expect(source.getByRole('switch')).not.toBeChecked();await source.getByRole('switch').click();await page.goto('/admin-app/#/store/fx');await page.getByRole('radio',{name:'กำหนดเอง',exact:false}).check();await page.getByLabel('เรท LAK ต่อ USD').fill('23000');await page.getByRole('button',{name:'ดูผลต่อราคาขาย'}).click();await expect(page.getByRole('heading',{name:'ตัวอย่างราคาก่อน–หลัง'})).toBeVisible();await page.getByRole('button',{name:'บันทึกอัตราแลกเปลี่ยน'}).click();await expect(page.getByText('บันทึกเรทแล้ว ออเดอร์เดิมยังใช้เรทเดิม')).toBeVisible();await page.reload();await expect(page.getByRole('radio',{name:'กำหนดเอง',exact:false})).toBeChecked();await expect(page.getByLabel('เรท LAK ต่อ USD')).toHaveValue('23000');});
 for(const width of [360,390,768,1280,1440])test('responsive navigation and controls at '+width,async({page})=>{await page.setViewportSize({width,height:844});await open(page);await expect(page.getByRole('navigation')).toBeVisible();for(const hash of ['','/orders','/chats','/store','/store/fx','/store/products','/store/settings']){await page.goto('/admin-app/#'+hash);await expect(page.locator('main h1')).toBeVisible();await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}expect(await page.getByRole('navigation').getByRole('button').count()).toBe(4);});
-test('product proposals preview without publishing and drafts keep mapping confirmation',async({page})=>{await open(page);await page.goto('/admin-app/#/store/products?game=free-fire');await page.getByRole('button').filter({hasText:'Free Fire diamonds'}).click();await expect(page.getByRole('heading',{name:'ตั้งค่าแพ็กเกจ'})).toBeVisible();await page.getByRole('switch',{name:'ใช้กำไรเริ่มต้นของร้าน'}).click();await page.getByLabel('บวกจากทุน (%)').fill('25');await page.getByRole('button',{name:'คำนวณจากค่าที่เลือก'}).click();await expect(page.getByText(/บวกจากทุน 25%/)).toBeVisible();await page.getByLabel('บวกจากทุน (%)').fill('30');await expect(page.getByText(/บวกจากทุน 25%/)).toHaveCount(0);await page.goto('/admin-app/#/store/products/new');await expect(page.getByText('สร้างเป็นฉบับร่างก่อน ตรวจราคาแล้วจึงเผยแพร่')).toBeVisible();await expect(page.getByRole('switch',{name:'เผยแพร่และเปิดขาย'})).toHaveCount(0);await expect(page.getByRole('button',{name:'บันทึกแพ็กเกจ'})).toBeDisabled();});
+test('product proposals preview without publishing and drafts keep mapping confirmation',async({page})=>{await open(page);await page.goto('/admin-app/#/store/products?game=free-fire');await page.getByRole('link',{name:'ตั้งราคา Free Fire diamonds',exact:true}).click();await expect(page.getByRole('heading',{name:'ตั้งค่าแพ็กเกจ'})).toBeVisible();await page.getByRole('switch',{name:'ใช้กำไรเริ่มต้นของร้าน'}).click();await page.getByLabel('บวกจากทุน (%)').fill('25');await page.getByRole('button',{name:'คำนวณจากค่าที่เลือก'}).click();await expect(page.getByText(/บวกจากทุน 25%/)).toBeVisible();await page.getByLabel('บวกจากทุน (%)').fill('30');await expect(page.getByText(/บวกจากทุน 25%/)).toHaveCount(0);await page.goto('/admin-app/#/store/products/new');await expect(page.getByText('สร้างเป็นฉบับร่างก่อน ตรวจราคาแล้วจึงเผยแพร่')).toBeVisible();await expect(page.getByRole('switch',{name:'เผยแพร่และเปิดขาย'})).toHaveCount(0);await expect(page.getByRole('button',{name:'บันทึกแพ็กเกจ'})).toBeDisabled();});
 test('chat reconnect drains every page before marking messages read',async({page})=>{await open(page);let incremental=0;const msg=(id:number)=>({id:String(id),sender:'customer',visibility:'public',text:'catchup-'+id,created_at:new Date().toISOString()});await page.route('**/admin/v1/customers/*/chat*',route=>{const url=new URL(route.request().url());if(url.searchParams.has('after')){incremental++;const after=Number(url.searchParams.get('after'));const messages=Array.from({length:Math.min(100,300-after)},(_,i)=>msg(after+i+1));return route.fulfill({json:{room_id:'fixture-room',messages,next_cursor:String(after+messages.length),older_cursor:String(after+1),has_older:false}});}return route.fulfill({json:{room_id:'fixture-room',messages:Array.from({length:100},(_,i)=>msg(i+1)),next_cursor:'100',older_cursor:'1',has_older:false}});});await page.goto('/admin-app/#/chats');await page.locator('.chat-card').filter({hasText:'player1'}).getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();await expect(page.getByText('catchup-100',{exact:true})).toBeVisible();await page.context().setOffline(true);await expect(page.getByText('ออฟไลน์ ข้อมูลที่แสดงอาจยังไม่อัปเดต')).toBeVisible();await page.context().setOffline(false);await expect(page.getByText('catchup-200',{exact:true})).toBeAttached();await expect(page.getByText('catchup-300',{exact:true})).toBeAttached();expect(incremental).toBeGreaterThanOrEqual(2);});
-test('stale product edits offer explicit reload and keep the remote revision',async({page})=>{await open(page);await page.goto('/admin-app/#/store/products?game=free-fire');await page.getByRole('button').filter({hasText:'Free Fire diamonds'}).click();await page.getByLabel('ชื่อแพ็กเกจบนเว็บ').fill('Local unsaved title');const products=(await (await page.request.get('/admin/v1/products')).json()).data,p=products[0],csrf=(await page.context().cookies()).find(c=>c.name==='squid_admin_csrf')!.value;const changed=await page.request.patch('/admin/v1/products/'+p.id,{headers:{origin:'http://127.0.0.1:3101','x-csrf-token':csrf},data:{name:'Remote updated title',published:false,use_default_markup:p.use_default_markup,markup_bps:p.markup_bps,strategy:p.strategy,fixed_offer_id:p.fixed_offer_id,expected_revision:p.revision,idempotency_key:randomUUID()}});expect(changed.status()).toBe(200);await page.getByRole('button',{name:'บันทึกแพ็กเกจ'}).click();await expect(page.getByRole('alert')).toBeVisible();await page.getByRole('button',{name:'โหลดข้อมูลล่าสุด'}).click();await expect(page.getByLabel('ชื่อแพ็กเกจบนเว็บ')).toHaveValue('Remote updated title');});
-test('review preview renders from isolated mock data without browser errors',async({page})=>{const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1280,height:900});await open(page);await expect(page.getByRole('heading',{name:'ภาพรวม'})).toBeVisible();await page.getByRole('switch',{name:'รวมรายการทดสอบ'}).click();await expect(page.getByRole('table',{name:'ออเดอร์ที่ต้องดูแล'}).getByRole('row').filter({hasText:'player1'})).toBeVisible();await page.getByRole('button',{name:'7 วัน',exact:true}).click();await expect(page.locator('.overview-plot-slot')).toHaveCount(7);await mkdir('artifacts',{recursive:true});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'artifacts/admin-preview-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/admin-preview-mobile.png',fullPage:true});expect(errors).toEqual([]);});
+test('stale product edits offer explicit reload and keep the remote revision',async({page})=>{await open(page);await page.goto('/admin-app/#/store/products?game=free-fire');await page.getByRole('link',{name:'ตั้งราคา Free Fire diamonds',exact:true}).click();await page.getByLabel('ชื่อแพ็กเกจบนเว็บ').fill('Local unsaved title');const products=(await (await page.request.get('/admin/v1/products')).json()).data,p=products[0],csrf=(await page.context().cookies()).find(c=>c.name==='squid_admin_csrf')!.value;const changed=await page.request.patch('/admin/v1/products/'+p.id,{headers:{origin:'http://127.0.0.1:3101','x-csrf-token':csrf},data:{name:'Remote updated title',published:false,use_default_markup:p.use_default_markup,markup_bps:p.markup_bps,strategy:p.strategy,fixed_offer_id:p.fixed_offer_id,expected_revision:p.revision,idempotency_key:randomUUID()}});expect(changed.status()).toBe(200);await page.getByRole('button',{name:'บันทึกแพ็กเกจ'}).click();await expect(page.getByRole('alert')).toBeVisible();await page.getByRole('button',{name:'โหลดข้อมูลล่าสุด'}).click();await expect(page.getByLabel('ชื่อแพ็กเกจบนเว็บ')).toHaveValue('Remote updated title');});
+test('review preview renders from isolated mock data without browser errors',async({page})=>{const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1280,height:900});await open(page);await expect(page.getByRole('heading',{name:'ภาพรวม'})).toBeVisible();await expect(page.getByRole('table',{name:'ออเดอร์ที่ต้องดูแล'}).getByRole('row').filter({hasText:'player1'})).toBeVisible();await page.getByRole('button',{name:'7 วัน',exact:true}).click();await expect(page.locator('.overview-plot circle')).toHaveCount(7);await expect(page.locator('.overview-line-profit')).toHaveCSS('stroke-dasharray','3px, 4px');const exportButton=page.getByRole('button',{name:'ส่งออกรายงาน'});const downloadPromise=page.waitForEvent('download');await exportButton.click();const download=await downloadPromise;expect(download.suggestedFilename()).toMatch(/^squid-overview-.*\.csv$/);const report=await readFile((await download.path())!,'utf8');expect(report.trim().split('\r\n')).toHaveLength(8);expect(report).toContain('ยอดขาย (USD)');await mkdir('artifacts',{recursive:true});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'artifacts/admin-preview-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/admin-preview-mobile.png',fullPage:true});expect(errors).toEqual([]);});
 test('conversation fills the viewport, hides global menus and keeps composer visible at short heights',async({page})=>{
  await page.setViewportSize({width:390,height:640});await open(page);await page.goto('/admin-app/#/chats');await page.locator('.chat-card').filter({hasText:'player2'}).getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();await expect(page.getByRole('heading',{name:'player2',exact:true})).toBeVisible();
  await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeHidden();await page.screenshot({path:'artifacts/chat-fullscreen-mobile.png'});
  for(const viewport of [{width:390,height:640},{width:360,height:450},{width:1280,height:720}]){await page.setViewportSize(viewport);const composer=page.getByLabel('ข้อความแชท');await expect(composer).toBeVisible();await expect.poll(()=>page.evaluate(()=>{const send=document.querySelector('button[aria-label="ส่งข้อความ"]')!.getBoundingClientRect();return send.bottom<=innerHeight&&document.documentElement.scrollHeight<=innerHeight+1&&document.documentElement.scrollWidth<=innerWidth;})).toBe(true);}
- await page.getByRole('button',{name:'ย้อนกลับไปแชท'}).click();await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeVisible();await expect(page.getByRole('heading',{name:'ห้องสนทนาล่าสุด'})).toBeVisible();
+ await page.getByRole('button',{name:'ย้อนกลับไปแชท'}).click();await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeVisible();await expect(page.getByRole('heading',{name:'ระบบแชทสดและศูนย์บริการลูกค้า'})).toBeVisible();
 });
 test('mobile pinch stays at normal scale while one-finger page scrolling still works',async({browser})=>{
  const context=await browser.newContext({isMobile:true,hasTouch:true,viewport:{width:390,height:844}});try{const page=await context.newPage();await open(page);await page.goto('/admin-app/#/store');await expect(page.getByRole('heading',{name:'จัดการร้าน',exact:true})).toBeVisible();const cdp=await context.newCDPSession(page);await cdp.send('Input.synthesizePinchGesture',{x:190,y:330,scaleFactor:1.7,gestureSourceType:'touch'});await expect.poll(()=>page.evaluate(()=>window.visualViewport?.scale)).toBe(1);
@@ -33,6 +110,20 @@ test('mobile catalog filters real saved products by game and search',async({page
  const product=products.find((row:{game_id:string;zone:string})=>row.game_id==='free-fire'&&row.zone==='th');
  expect(product).toBeDefined();
  const heading=page.getByRole('heading',{name:product.name,exact:true});
+ await page.goto('/admin-app/#/store');
+ await page.getByRole('button',{name:/^เทียบต้นทุนซัพพลายเออร์/}).click();
+ await expect(page.getByRole('heading',{name:'เทียบต้นทุนซัพพลายเออร์',exact:true})).toBeVisible();
+ await page.getByRole('navigation',{name:'เลือกเกม'}).getByRole('link',{name:'Free Fire',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'เทียบต้นทุนซัพพลายเออร์',exact:true})).toBeVisible();
+ await expect(page.getByRole('switch')).toBeDisabled();
+ await expect(page.getByRole('link',{name:/^ตั้งราคา/})).toHaveCount(0);
+ await page.getByRole('button',{name:'เทียบต้นทุน '+product.name,exact:true}).click();
+ const matchedCosts=page.getByRole('dialog',{name:'เทียบต้นทุนซัพพลายเออร์'});
+ await expect(matchedCosts).toContainText('LAK');
+ await expect(matchedCosts.locator('.supplier-icon[data-supplier="jorjee"]')).toBeVisible();
+ await page.getByRole('button',{name:'ปิดเทียบต้นทุน',exact:true}).click();
+ await page.getByRole('button',{name:'ย้อนกลับ',exact:true}).click();
+ await expect(page).toHaveURL(/#\/store\/products\?compare=1$/);
  await page.goto('/admin-app/#/store/products');
  const gameGrid=page.getByRole('navigation',{name:'เลือกเกม'});
  const freeFire=gameGrid.getByRole('link',{name:'Free Fire',exact:true});
@@ -67,6 +158,19 @@ test('mobile catalog filters real saved products by game and search',async({page
  await page.getByRole('button',{name:'ล้างตัวกรอง'}).click();
  await expect(heading).toBeVisible();
  await page.screenshot({path:'artifacts/mobile-products.png',fullPage:true});
+ await page.getByRole('button',{name:'เทียบต้นทุน '+product.name,exact:true}).click();
+ const comparison=page.getByRole('dialog',{name:'เทียบต้นทุนซัพพลายเออร์'});
+ await expect(comparison).toContainText('LAK');
+ await page.getByRole('button',{name:'ปิดเทียบต้นทุน',exact:true}).click();
+ const live=page.locator('.mobile-product-card').filter({has:heading}).getByRole('switch');
+ await expect(live).toHaveJSProperty('checked',product.published);
+ await live.click();
+ await expect(live).toHaveJSProperty('checked',!product.published);
+ const saved=(await (await page.request.get('/admin/v1/products?game_id=free-fire')).json()).data.find((row:{id:string})=>row.id===product.id);
+ expect(saved.published).toBe(!product.published);
+ expect(saved.offer_ids).toEqual(product.offer_ids);
+ await live.click();
+ await expect(live).toHaveJSProperty('checked',product.published);
  await page.getByRole('link',{name:'ตั้งราคา '+product.name,exact:true}).click();
  await expect(page.getByRole('heading',{name:'ตั้งค่าแพ็กเกจ'})).toBeVisible();
  await expect(page.getByRole('button',{name:'บันทึกแพ็กเกจ'})).toBeEnabled();
@@ -110,3 +214,23 @@ for(const width of [360,375,390]){
   }
  });
 }
+test('desktop support desk keeps the queue and selected customer beside the conversation',async({page})=>{
+ await page.setViewportSize({width:1280,height:800});
+ await open(page);
+ await expect(page.getByRole('heading',{name:'ภาพรวม',level:1,exact:true})).toBeVisible();
+ await page.goto('/admin-app/#/chats');
+ await page.locator('.chat-card').filter({hasText:'player1'}).getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();
+ const queue=page.getByRole('complementary',{name:'คิวแชทลูกค้า'});
+ const customer=page.getByRole('complementary',{name:'ข้อมูลลูกค้า'});
+ await expect(queue).toBeVisible();
+ await expect(page.getByRole('navigation',{name:'เมนูหลัก'})).toBeVisible();
+ await expect(customer).toContainText('player1');
+ await queue.locator('.chat-card').filter({hasText:'player2'}).getByRole('button',{name:'เปิดแชทตอบกลับ'}).click();
+ await expect(page.getByRole('heading',{name:'player2',level:1,exact:true})).toBeVisible();
+ await expect(customer).toContainText('player2');
+ await expect(queue.locator('.chat-card').filter({hasText:'player2'}).getByRole('button',{name:'เปิดแชทตอบกลับ'})).toHaveAttribute('aria-current','page');
+ await expect(page.locator('.bubble')).toContainText(['ข้อความจาก Player 2']);
+ await expect(page.getByLabel('ข้อความแชท')).toBeInViewport();
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'artifacts/admin-support-desk-desktop.png'});
+});

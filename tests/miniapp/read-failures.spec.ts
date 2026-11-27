@@ -49,6 +49,40 @@ test('settings refresh failure preserves the draft and blocks writes until recov
  fail=false;await page.getByRole('button',{name:'ลองโหลดอีกครั้ง'}).click();await expect(page.getByRole('button',{name:'บันทึกข้อมูลรับเงิน'})).toBeEnabled();await expect(page.getByLabel('คำแนะนำการชำระเงิน')).toHaveValue('ร่างรับชำระเงิน');
 });
 
+test('mobile payment and alert settings preserve separate drafts and refresh clean fields',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await open(page);
+ await page.goto('/admin-app/#/store/settings');
+ const instructions=page.getByLabel('คำแนะนำการชำระเงิน');
+ const alerts=page.getByRole('switch',{name:'แจ้งเตือนเมื่อร้านต้นทางดึงข้อมูลไม่สำเร็จ'});
+ const initial=(await (await page.request.get('/admin/v1/settings')).json()).alerts.value.enabled;
+ const text='ข้อมูลรับชำระเงินสำหรับการทดสอบ';
+ await instructions.fill(text);
+ const remote=await page.evaluate(async enabled=>{
+  const state=await (await fetch('/admin/v1/settings')).json();
+  const csrf=/squid_admin_csrf=([^;]+)/.exec(document.cookie)?.[1]??'';
+  const result=await fetch('/admin/v1/settings/alerts',{method:'PATCH',headers:{'content-type':'application/json','x-csrf-token':csrf},
+   body:JSON.stringify({value:{enabled},expected_revision:state.alerts.revision,idempotency_key:crypto.randomUUID()})});
+  window.dispatchEvent(new Event('admin:refresh'));
+  return result.status;
+ },!initial);
+ expect(remote).toBe(200);
+ await expect(alerts).toBeChecked({checked:!initial});
+ await expect(instructions).toHaveValue(text);
+ await alerts.click();
+ await page.getByRole('button',{name:'บันทึกข้อมูลรับเงิน'}).click();
+ await expect(page.getByRole('status')).toContainText('บันทึกเรียบร้อยแล้ว');
+ await expect(alerts).toBeChecked({checked:initial});
+ const afterPayment=(await (await page.request.get('/admin/v1/settings')).json());
+ expect(afterPayment.payments.value.instructions).toBe(text);
+ expect(afterPayment.alerts.value.enabled).toBe(!initial);
+ await page.getByRole('button',{name:'บันทึกการแจ้งเตือน'}).click();
+ await expect(page.getByRole('status')).toContainText('บันทึกเรียบร้อยแล้ว');
+ await page.reload();
+ await expect(instructions).toHaveValue(text);
+ await expect(alerts).toBeChecked({checked:initial});
+});
+
 test('product editor requires all read dependencies and preserves mappings on a failed refresh',async({page})=>{
  await open(page);const product=(await (await page.request.get('/admin/v1/products')).json()).data[0];let fail=true;
  await page.route('**/admin/v1/catalog?**',r=>fail?r.fulfill({status:503,json:{error:'unavailable'}}):r.continue());
@@ -74,6 +108,8 @@ test('customer order read failure is distinct from an empty history and can reco
  await page.goto('/admin-app/#/customers/'+c.id);await expect(page.getByRole('alert')).toBeVisible();
  await expect(page.getByText('ยังไม่มีออเดอร์',{exact:true})).toHaveCount(0);await expect(page.getByText('ไม่มีออเดอร์ที่มีปัญหา',{exact:true})).toHaveCount(0);
  fail=false;await page.getByRole('button',{name:'ลองโหลดอีกครั้ง'}).click();await expect(page.locator('.order-row')).not.toHaveCount(0);await expect(page.getByRole('alert')).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:c.username,level:1})).toBeVisible();
+ await expect(page.locator('.customer-profile').getByText(c.username,{exact:true})).toHaveCount(1);
 });
 
 test('PDF receipt download reports a read failure and succeeds on retry',async({page})=>{
@@ -82,4 +118,45 @@ test('PDF receipt download reports a read failure and succeeds on retry',async({
  await page.route('**/admin/v1/orders/browser-order-3/receipts/*',r=>fail?r.fulfill({status:503,body:'unavailable'}):r.fulfill({contentType:'application/pdf',body:'%PDF-1.4\n% isolated download fixture\n%%EOF'}));
  await page.goto('/admin-app/#/orders/browser-order-3');await page.getByRole('button',{name:'ดาวน์โหลดสลิป PDF'}).click();await expect(page.getByRole('alert')).toContainText('เปิดสลิปไม่ได้');
  fail=false;const download=page.waitForEvent('download');await page.getByRole('button',{name:'ดาวน์โหลดสลิป PDF'}).click();expect((await download).suggestedFilename()).toBe('payment-receipt.pdf');await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('receipt viewer retries an unavailable image and returns focus to the thumbnail',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await open(page);
+ let failed=true;
+ await page.route(/\/admin\/v1\/orders\/browser-order-3\/receipts\//,route=>
+  failed?route.fulfill({status:503,body:'unavailable'}):route.continue());
+ await page.goto('/admin-app/#/orders/browser-order-3');
+ const thumbnail=page.getByRole('button',{name:/เปิดดูหลักฐานแบบเต็ม/});
+ await thumbnail.click();
+ const viewer=page.getByRole('dialog',{name:'สลิปชำระเงินขนาดเต็ม'});
+ await expect(viewer.getByRole('alert')).toContainText('โหลดรูปสลิปไม่สำเร็จ');
+ failed=false;
+ await viewer.getByRole('button',{name:'ลองใหม่',exact:true}).click();
+ await expect(viewer.getByAltText('สลิปชำระเงินขนาดเต็ม')).toHaveJSProperty('naturalWidth',1);
+ await page.keyboard.press('Escape');
+ await expect(viewer).toBeHidden();
+ await expect(thumbnail).toBeFocused();
+});
+
+test('a tall receipt stays readable and scrolls independently of the order',async({page})=>{
+ await page.setViewportSize({width:320,height:568});
+ await open(page);
+ await page.route(/\/admin\/v1\/orders\/browser-order-3\/receipts\//,route=>route.fulfill({
+  contentType:'image/svg+xml',
+  body:'<svg xmlns="http://www.w3.org/2000/svg" width="590" height="1280"><rect width="590" height="1280" fill="white"/></svg>',
+ }));
+ await page.goto('/admin-app/#/orders/browser-order-3');
+ await page.getByRole('button',{name:/เปิดดูหลักฐานแบบเต็ม/}).click();
+ const viewer=page.getByRole('dialog',{name:'สลิปชำระเงินขนาดเต็ม'});
+ const image=viewer.getByAltText('สลิปชำระเงินขนาดเต็ม');
+ await expect(image).toHaveJSProperty('naturalHeight',1280);
+ const scroller=viewer.getByRole('region',{name:'เลื่อนดูรูปสลิปต้นฉบับ'});
+ await expect.poll(()=>scroller.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeGreaterThan(0);
+ await expect.poll(()=>image.evaluate(el=>el.getBoundingClientRect().width/innerWidth)).toBeGreaterThan(0.75);
+ await scroller.focus();
+ await page.keyboard.press('End');
+ await expect.poll(()=>scroller.evaluate(el=>Math.abs(el.scrollHeight-el.clientHeight-el.scrollTop))).toBeLessThan(2);
+ await expect(viewer.getByRole('button',{name:'ปิดสลิป'})).toBeInViewport();
+ await expect(viewer.getByText('วันที่ส่งสลิป')).toBeInViewport();
 });

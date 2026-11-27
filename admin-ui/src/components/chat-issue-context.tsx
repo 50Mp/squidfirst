@@ -1,17 +1,18 @@
+import {StitchIcon} from './stitch-icon';
 import {AlertTriangle,ChevronRight,ShoppingBag} from 'lucide-react';
 import {useResource,navigate,shortId,gameName,dollars,type Row} from '../api';
 import {Status} from '../components';
 import {ReadNotice} from './read-notice';
 
-interface ChatIssueContextProps {readonly customerId:string}
-export function ChatIssueContext({customerId}:Readonly<ChatIssueContextProps>){
+interface ChatIssueContextProps {readonly customerId:string;readonly username?:string;readonly expanded?:boolean}
+export function ChatIssueContext({customerId,username,expanded=false}:Readonly<ChatIssueContextProps>){
  const {data,error}=useResource('/orders?'+new URLSearchParams({customer_id:customerId,status:'issue',limit:'50'}));
  const recent=useResource(data&&!data.data.length?'/orders?'+new URLSearchParams({customer_id:customerId,limit:'2'}):null);
  if(!error&&!data?.data.length){
   const orders:Row[]=recent.data?.data??[];
   if(!orders.length&&!recent.error)return null;
-  return <details className="stitch-chat-orders">
-   <summary><ShoppingBag size={16}/> ออเดอร์ล่าสุดของลูกค้า</summary>
+  return <details className="stitch-chat-orders" open={expanded||undefined}>
+   <summary>{username?<StitchIcon name="shopping_bag" size={18}/>:<ShoppingBag size={16} aria-hidden="true"/>}<span className="chat-orders-title">{username&&orders.length?`ออเดอร์ของ ${username} (${orders.length} รายการล่าสุด)`:'ออเดอร์ล่าสุดของลูกค้า'}</span>{username&&<span className="chat-orders-toggle">ย่อ/ขยาย</span>}</summary>
    <ReadNotice error={recent.error} cached={!!recent.data}/>
    {orders.map(o=><button key={o.id} className="stitch-chat-order" onClick={()=>navigate('/orders/'+o.id)}>
     <span><strong>#{shortId(o.id)}</strong> · {gameName(o.details.game_id)}<small>{o.details.name}</small></span>

@@ -46,7 +46,11 @@ export class OperationsSettings{
    const result=await fn(tx);await tx.query('INSERT INTO admin_mutations(key,fingerprint,result) VALUES($1,$2,$3)',[full,fingerprint,JSON.stringify(result)]);return result;
   });
  }
- async sources(){return(await this.db.query(`SELECT s.id,s.name,s.url,t.enabled,t.revision,st.last_success_at,st.data_origin,(SELECT COUNT(*)::int FROM packages p WHERE p.source_id=s.id AND p.active=TRUE) AS package_count,(SELECT jsonb_build_object('id',r.id,'status',r.status,'at',r.created_at) FROM sync_runs r WHERE r.source_id=s.id ORDER BY r.created_at DESC LIMIT 1) AS last_run FROM sources s JOIN source_settings t ON t.source_id=s.id JOIN source_state st ON st.source_id=s.id ORDER BY s.id`)).rows;}
+ async sources(){return(await this.db.query(`SELECT s.id,s.name,s.url,t.enabled,t.revision,st.last_success_at,st.data_origin,
+  (SELECT COUNT(*)::int FROM packages p WHERE p.source_id=s.id AND p.active=TRUE) AS package_count,
+  (SELECT jsonb_build_object('id',r.id,'status',CASE WHEN r.status='completed' AND r.result->>'status'='skipped' THEN 'skipped' ELSE r.status END,'at',r.created_at)
+   FROM sync_runs r WHERE r.source_id=s.id ORDER BY r.created_at DESC LIMIT 1) AS last_run
+  FROM sources s JOIN source_settings t ON t.source_id=s.id JOIN source_state st ON st.source_id=s.id ORDER BY s.id`)).rows;}
  async setSource(actor:AdminActor,id:string,enabled:boolean,revision:number,key:string){
   if(!SOURCES.some(s=>s.id===id)||typeof enabled!=='boolean'||!Number.isSafeInteger(revision))throw new OrderError(400,'Invalid source setting');
   return this.mutate(actor,key,{id,enabled,revision},async tx=>{

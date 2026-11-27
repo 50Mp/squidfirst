@@ -9,6 +9,10 @@ export class Accounts{
  constructor(private db:Database){}
  async init(){for(const sql of [
   `CREATE TABLE IF NOT EXISTS customer_accounts(id TEXT PRIMARY KEY,username TEXT UNIQUE NOT NULL,password_salt TEXT NOT NULL,password_hash TEXT NOT NULL,disabled BOOLEAN NOT NULL DEFAULT FALSE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+  `ALTER TABLE customer_accounts
+    ADD COLUMN IF NOT EXISTS display_name TEXT,
+    ADD COLUMN IF NOT EXISTS avatar_data_url TEXT,
+    ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`,
   `CREATE TABLE IF NOT EXISTS customer_sessions(token_hash TEXT PRIMARY KEY,customer_id TEXT REFERENCES customer_accounts(id),expires_at TIMESTAMPTZ NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS customer_chat_rooms(id TEXT PRIMARY KEY,customer_id TEXT UNIQUE NOT NULL REFERENCES customer_accounts(id),topic_id TEXT,topic_bot_key TEXT,topic_state TEXT NOT NULL DEFAULT 'new',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(topic_bot_key,topic_id))`,
  ])await this.db.query(sql);}

@@ -1,9 +1,9 @@
 import {Gamepad2} from 'lucide-react';
-import freeFire from '../catalog-free-fire.png';
-import rov from '../stitch-rov.jpg';
+import freeFire from '../game-icons/free-fire.webp';
+import rov from '../game-icons/rov.webp';
 import genshin from '../stitch-genshin.jpg';
-import mobileLegends from '../catalog-mobile-legends.png';
-import pubg from '../catalog-pubg.png';
+import mobileLegends from '../game-icons/mobile-legends-bang-bang.webp';
+import pubg from '../game-icons/pubg-mobile.webp';
 
 const artwork:Record<string,string>={'free-fire':freeFire,rov,genshin,'genshin-impact':genshin,'mobile-legends-bang-bang':mobileLegends,'pubg-mobile':pubg};
 const supplierArtwork=import.meta.glob<string>('../supplier-game-icons/*.png',{eager:true,import:'default',query:'?url'});

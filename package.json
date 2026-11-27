@@ -20,7 +20,10 @@
     "check": "tsc --noEmit",
     "build:admin": "vite build admin-ui --config admin-ui/vite.config.ts",
     "check:admin": "tsc --project admin-ui/tsconfig.json",
-    "dev:admin": "vite --config admin-ui/vite.config.ts admin-ui"
+    "dev:admin": "vite --config admin-ui/vite.config.ts admin-ui",
+    "local:tunnel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-local-tunnel.ps1",
+    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
+    "local:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-status.ps1"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.16",

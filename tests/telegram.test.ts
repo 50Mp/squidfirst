@@ -6,7 +6,10 @@ import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import { openDatabase,Repository } from '../src/database.js';
 import { OrderService } from '../src/orders.js';
-import type { CustomerChat } from '../src/customer-chat.js';
+import { CustomerChat } from '../src/customer-chat.js';
+import {Accounts} from '../src/accounts.js';
+import {AdminService} from '../src/admin/service.js';
+import {AdminAuth} from '../src/admin/auth.js';
 import { processTelegramUpdate,runTelegram,formatTelegramOrder,formatTelegramCustomer,telegramOrderButtons } from '../src/telegram.js';
 
 // Fake workers retain canonical card state just as the real service persists it in SQL.
@@ -165,6 +168,85 @@ test('customer topic messages have a customer-details button without appending a
   assert.equal(sent.text,'ช่วยตรวจให้หน่อย');assert.equal(sent.message_thread_id,500);
   assert.deepEqual(sent.reply_markup.inline_keyboard,[[{text:'👤 รายละเอียดลูกค้า',callback_data:`c:${room}:issue:0`}]]);
  }finally{globalThis.fetch=originalFetch;controller.abort();}
+});
+
+test('chat attachments reach only their private topics and retry a missing topic with the original bytes',async()=>{
+ const db=await openDatabase('memory:');
+ const originalFetch=globalThis.fetch;
+ const controller=new AbortController();
+ try{
+  const repo=new Repository(db),accounts=new Accounts(db);
+  const chat=new CustomerChat(db,accounts),orders=new OrderService(db,async()=>null,accounts);
+  await repo.init();await accounts.init();await chat.init();await orders.init();
+  const admin=new AdminService(db,orders,chat,repo);
+  const auth=new AdminAuth(db,{botToken:'offline-test',ownerTelegramId:'123',origin:'http://localhost'});
+  await auth.init();
+  await admin.init();
+  const first=await accounts.register('attachment_public','a sample long password');
+  const second=await accounts.register('attachment_internal','a sample long password');
+  const config={token:'offline-test',chatId:'123',userId:'123',botKey:'test'};
+  for(const [customer,topic] of [[first,'501'],[second,'502']] as const){
+   await chat.topic(customer.user.room_id,config.botKey);
+   await chat.topicCreated(customer.user.room_id,config.botKey,topic);
+  }
+  const actor={...await auth.telegramActor(),channel:'miniapp'} as const;
+  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l3sAAAAASUVORK5CYII=';
+  const pdf=Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64');
+  const longText='ข้อความภายใน '.repeat(130);
+  await admin.sendChat(actor,first.user.id,{text:'ลูกค้าเห็นไฟล์นี้',visibility:'public',idempotency_key:'public-attachment-001',attachment:{name:'guide.png',mime:'image/png',data:png}});
+  await admin.sendChat(actor,second.user.id,{text:longText,visibility:'internal',idempotency_key:'internal-attachment-001',attachment:{name:'internal.pdf',mime:'application/pdf',data:pdf}});
+  const uploads:FormData[]=[];
+  const newTopics:string[]=[];
+  const textSends:unknown[]=[];
+  globalThis.fetch=async(input,init)=>{
+   const method=String(input).split('/').pop();
+   if(method==='getMe')return Response.json({ok:true,result:{has_topics_enabled:true}});
+   if(method==='getForumTopicIconStickers')return Response.json({ok:true,result:[{emoji:'💬',custom_emoji_id:'700'}]});
+   if(method==='editForumTopic')return Response.json({ok:true,result:true});
+   if(method==='createForumTopic'){
+    newTopics.push(JSON.parse(String(init?.body)).name);
+    return Response.json({ok:true,result:{message_thread_id:601}});
+   }
+   if(method==='sendMessage')textSends.push(init?.body);
+   if(method==='sendDocument'&&init?.body instanceof FormData){
+    uploads.push(init.body);
+    if(uploads.length===1)return Response.json({ok:false,error_code:400,description:'Bad Request: message thread not found'},{status:400});
+    if(uploads.length===3)controller.abort();
+    return Response.json({ok:true,result:{message_id:42}});
+   }
+   await new Promise(resolve=>setTimeout(resolve,5));
+   return Response.json({ok:true,result:[]});
+  };
+  const timeout=setTimeout(()=>controller.abort(),5000);
+  try{await runTelegram(orders,config,controller.signal,chat);}
+  finally{clearTimeout(timeout);}
+  assert.deepEqual(textSends,[]);
+  assert.deepEqual(newTopics,['attachment_public']);
+  assert.deepEqual(uploads.map(body=>body.get('message_thread_id')),['501','601','502']);
+  for(const [index,body] of uploads.entries()){
+   const isPublic=index<2;
+   const owner=isPublic?first:second;
+   const document=body.get('document');
+   assert.ok(document instanceof File);
+   assert.equal(document.name,isPublic?'guide.png':'internal.pdf');
+   assert.equal(document.type,isPublic?'image/png':'application/pdf');
+   assert.equal(Buffer.from(await document.arrayBuffer()).toString('base64'),isPublic?png:pdf);
+   assert.equal(body.get('chat_id'),config.chatId);
+   assert.deepEqual(JSON.parse(String(body.get('reply_markup'))).inline_keyboard,[[{text:'👤 รายละเอียดลูกค้า',callback_data:`c:${owner.user.room_id}:issue:0`}]]);
+  }
+  assert.match(String(uploads[1].get('caption')),/ลูกค้าเห็นไฟล์นี้/);
+  const internalCaption=String(uploads[2].get('caption'));
+  assert.match(internalCaption,/บันทึกภายใน/);
+  assert.match(internalCaption,/อ่านข้อความเต็มใน Mini App/);
+  assert.ok(internalCaption.length<=1024);
+  assert.deepEqual((await chat.read(second.token)).messages,[]);
+  const jobs=(await db.query('SELECT state FROM customer_chat_jobs ORDER BY message_id')).rows;
+  assert.deepEqual(jobs,[{state:'sent'},{state:'sent'}]);
+ }finally{
+  controller.abort();
+  globalThis.fetch=originalFetch;
+  await db.close();
+ }
 });
 
 test('each player order and receipt is delivered only to that customer topic',async()=>{

@@ -1,7 +1,9 @@
+import {StitchIcon} from './stitch-icon';
 import {useState} from 'react';
-import {Check,Copy,Eye} from 'lucide-react';
+
 import {dateTime,dollars,gameName,navigate,shortId,type Row} from '../api';
 import {displayText,Status} from '../components';
+import {GameMark} from './game-art';
 
 interface OrderTableProps {
  readonly rows:readonly Row[];
@@ -41,12 +43,12 @@ export function OrderTable({rows,total,activeId,selection,busy,onToggle,onToggle
       <td><input type="checkbox" aria-label={'เลือกออเดอร์ #'+shortId(row.id)} checked={checked} disabled={busy} onChange={()=>onToggle(row.id)}/></td>
       <th scope="row"><button className="order-card-summary desktop-order-link" aria-current={active?'true':undefined} onClick={open}>#{shortId(row.id)}<time dateTime={row.created_at}>{dateTime(row.created_at)}</time></button></th>
       <td>{row.username??'—'}</td>
-      <td><strong>{gameName(details.game_id)}</strong><small>{displayText(details.name)}{details.zone?' · '+details.zone.toUpperCase():''}</small></td>
-      <td><div className="desktop-order-uid"><span className="selectable">{uid??'—'}</span>{uid&&<button className="quiet" aria-label={'คัดลอก UID ออเดอร์ #'+shortId(row.id)} onClick={()=>void copyUid(row.id,String(uid))}>{copy.id===row.id?<Check size={15}/>:<Copy size={15}/>}</button>}</div></td>
+      <td><div className="desktop-order-game"><GameMark gameId={details.game_id}/><span><strong>{gameName(details.game_id)}</strong><small>{displayText(details.name)}{details.zone?' · '+details.zone.toUpperCase():''}</small></span></div></td>
+      <td><div className="desktop-order-uid"><span className="selectable">{uid??'—'}</span>{uid&&<button className="quiet" aria-label={'คัดลอก UID ออเดอร์ #'+shortId(row.id)} onClick={()=>void copyUid(row.id,String(uid))}>{copy.id===row.id?<StitchIcon name="check" size={15}/>:<StitchIcon name="content_copy" size={15}/>}</button>}</div></td>
       <td className="desktop-order-amount">{dollars(details.price_usd)}</td>
       <td>{row.supplier_name??'—'}</td>
       <td><Status value={row.status}/></td>
-      <td><button className="secondary desktop-order-view" aria-label={'ดูออเดอร์ #'+shortId(row.id)} onClick={open}><Eye size={17}/></button></td>
+      <td><button className="secondary desktop-order-view" aria-label={'ดูออเดอร์ #'+shortId(row.id)} onClick={open}><StitchIcon name="visibility" size={17}/></button></td>
      </tr>;
     })}</tbody>
    </table>

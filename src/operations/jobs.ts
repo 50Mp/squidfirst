@@ -6,7 +6,18 @@ export class SyncJobs{
  async enqueue(actor:AdminActor,source:string,key:string){
   if(!SOURCES.some(s=>s.id===source))throw new OrderError(400,'Unknown source');if(!inSyncWindow(new Date()))throw new OrderError(409,'Sync allowed only 15:00–16:00 UTC+7');if(!await this.repo.sourceEnabled(source))throw new OrderError(409,'Source disabled');
   const result=await this.settings.mutate(actor,key,{source,kind:'manual-sync'},async tx=>{const id=randomUUID();await tx.query('INSERT INTO admin_sync_jobs(id,source_id) VALUES($1,$2)',[id,source]);await appendAudit(tx,actor,{action:'source.sync',entityType:'source',entityId:source,before:null,after:{job_id:id}});return{job_id:id};});
-  const claimed=await this.db.query("UPDATE admin_sync_jobs SET status='running' WHERE id=$1 AND status='queued' RETURNING id",[result.job_id]);if(claimed.rows.length){let task:Promise<void>;task=(async()=>{try{await syncOnce(this.repo,source,{signal:this.controller.signal});await this.db.query("UPDATE admin_sync_jobs SET status='completed' WHERE id=$1",[result.job_id]);}catch{await this.db.query("UPDATE admin_sync_jobs SET status='failed' WHERE id=$1",[result.job_id]);}})().finally(()=>this.pending.delete(task));this.pending.add(task);}return result;
+  const claimed=await this.db.query("UPDATE admin_sync_jobs SET status='running' WHERE id=$1 AND status='queued' RETURNING id",[result.job_id]);
+  if(claimed.rows.length){
+   let task:Promise<void>;
+   task=(async()=>{
+    try{
+     const run=await syncOnce(this.repo,source,{signal:this.controller.signal});
+     await this.db.query('UPDATE admin_sync_jobs SET status=$2 WHERE id=$1',[result.job_id,run.status==='skipped'?'skipped':'completed']);
+    }catch{await this.db.query("UPDATE admin_sync_jobs SET status='failed' WHERE id=$1",[result.job_id]);}
+   })().finally(()=>this.pending.delete(task));
+   this.pending.add(task);
+  }
+  return result;
  }
  async stop(){this.controller.abort();await Promise.allSettled([...this.pending]);}
 }
