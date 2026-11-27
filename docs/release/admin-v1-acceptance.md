@@ -36,6 +36,16 @@ Updated 2026-11-24 (Asia/Bangkok). Scope: Tasks 1–4 of the approved Stitch imp
 - The immediate production sweep cancelled the 10 overdue real seeded orders. Verification found 0 overdue `awaiting_payment`, 10 overdue `cancelled`, 0 pending/sending non-completion outbox jobs, 0 cancellation jobs and the same 10 previously sent outbox rows. No Telegram message was sent for automatic cancellation.
 - Telegram credentials are valid (`getMe` 200 for `SquidfirstBot`), no webhook is configured and the pending update count was zero. Inbound long polling still reports Telegram 409 conflicts. A controlled diagnostic stopped this PC's API before polling and still received 409 after 5.6 seconds, proving another bot instance outside this PC is using the same token. Local process inspection found no second squidfirst bot. This conflicts with inbound callbacks until the old instance is stopped or the bot token is rotated; outbound Bot API access remains available. No live QA message was sent.
 
+## Post-pull Mobile catalog checks — 2026-11-24
+
+- Continued from `a1f38e6` using the incoming iOS Minimal Light UI. Previous local UI drafts remain preserved in the pre-pull stash and were not restored over the incoming code.
+- Fresh backend tests passed 61/61; backend/admin TypeScript checks passed. The final browser suite passed 59/59 using `SQUID_LOCAL_BUILD=1` and the build under ignored `artifacts/local-preview/admin-ui/dist`.
+- Reproduced and repaired blank successful reads for sellable-game and source-only catalogs. Empty results now explain the missing packages; failed reads retain retry/error notices. A source game metadata refresh failure cannot silently become a successful empty state.
+- Added TH/ID/other-game fixtures: zone and search filters combine correctly and unrelated game packages stay out of the list. Supported-game image checks require visible loaded image pixels; unknown games retain the SVG fallback in cards and details.
+- A fresh independent review found one Important issue involving cached source-game metadata. Its regression failed before repair and passed afterward, followed by the green 59/59 browser suite. No Critical or Minor findings were reported. The review deferred the full-suite outcome to the executor; the final suite result above resolves that check.
+- Local visual samples for the empty source catalog and selected ID zone were inspected. The loopback-only design preview is available at `http://localhost:3103/preview` while its process runs, with a separate in-memory database, fake owner credentials and no Telegram or supplier transport. Restarting resets the sample data.
+- This continuation did not import the repository snapshot into the live database or restart/deploy the production services. The remaining physical Telegram acceptance still requires the separate test endpoint/bot described in the Mobile plan.
+
 ## Pending physical-device checks
 
 Owner reported on 2026-11-24: Mini App opens on iPhone; send control, back navigation and slip viewer work. This is user-reported physical-device evidence. Exact model, iOS and Telegram versions were not supplied. It does not establish message delivery or status parity.

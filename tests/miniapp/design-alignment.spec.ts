@@ -206,6 +206,7 @@ test('overview and orders have no test-data toggle',async({page})=>{
 test('order cards use a game icon instead of a letter abbreviation',async({page})=>{
  await page.setViewportSize({width:390,height:844});await open(page);await page.goto('/admin-app/#/orders');
  const cardMark=page.locator('.order-card').first().locator('.game-mark');
+<<<<<<< HEAD
  await expect(cardMark.locator('img')).toBeVisible();await expect(cardMark).not.toHaveText(/^(FF|ML)$/);
  await page.locator('.order-card').first().click();
  const detailMark=page.locator('.detail-game .game-mark');
@@ -231,6 +232,12 @@ test('mobile order detail follows the Stitch section order and shows only the cu
  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.setViewportSize({width:390,height:await page.evaluate(()=>document.documentElement.scrollHeight)});
  await page.screenshot({path:'artifacts/stitch-order-detail-mobile.png',fullPage:true});
+=======
+ await expect(cardMark.locator('img')).toBeVisible();await expect.poll(()=>cardMark.locator('img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);await expect(cardMark).not.toHaveText(/^(FF|ML)$/);
+ await page.locator('.order-card').first().locator('.order-card-summary').click();
+ const detailMark=page.locator('.detail-game .game-mark');
+ await expect(detailMark.locator('img')).toBeVisible();await expect.poll(()=>detailMark.locator('img').evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);await expect(detailMark).not.toHaveText(/^(FF|ML)$/);
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
 });
 test('FX local example follows the selected draft rate without saving it',async({page})=>{
  async function savedFx(){

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import {StitchIcon} from './components/stitch-icon';
 import type {ReactNode} from 'react';
 import squidLogo from '../../assert/squid first logo_-02.svg?url';
@@ -6,6 +7,15 @@ import {GameMark} from './components/game-art';
 import {navigate,statuses,dateTime,dollars,gameName,shortId,type Row} from './api';
 export function SquidMark(){return <img className="squid-logo" src={squidLogo} alt="" aria-hidden="true" width={44} height={44}/>;}
 export function PageHeader({title,subtitle,back,backIcon,children}:{title:string;subtitle?:string;back?:string;backIcon?:string;children?:ReactNode}){return <header className="page-heading"><div>{back&&<button className="back-link" onClick={()=>navigate(back)}>{backIcon?<StitchIcon name={backIcon} size={20}/>:<ArrowLeft size={16}/>}ย้อนกลับ</button>}<h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{children}</header>;}
+=======
+﻿import type {ReactNode} from 'react';
+import {AlertTriangle,ArrowLeft,ChevronRight,LoaderCircle,Package,Check,Clock3} from 'lucide-react';
+import {GameMark} from './components/game-art';
+import {navigate,statuses,dateTime,dollars,gameName,shortId,type Row} from './api';
+import squidLogo from './squid-logo.png';
+export function SquidMark(){return <img src={squidLogo} alt="Squid first" aria-hidden="true" width={44} height={44} style={{objectFit:'contain',flexShrink:0,display:'block'}}/>;}
+export function PageHeader({title,subtitle,back,children}:{title:string;subtitle?:string;back?:string;children?:ReactNode}){return <header className="page-heading"><div>{back&&<button className="back-link" onClick={()=>navigate(back)}><ArrowLeft size={16}/>ย้อนกลับ</button>}<h1>{title}</h1>{subtitle&&<p>{subtitle}</p>}</div>{children}</header>;}
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
 export function Status({value}:{value:string}){return <span className={'status '+value}>{['completed'].includes(value)?<Check size={13}/>:value==='issue'?<AlertTriangle size={13}/>:<Clock3 size={13}/>} {statuses[value]??value}</span>;}
 export function ErrorBox({message}:{message?:string}){return message?<div className="error-box" role="alert"><AlertTriangle size={18}/><span>{message}</span></div>:null;}
 export function Loading(){return <div className="loading" role="status"><LoaderCircle className="spin" size={22}/>กำลังโหลดข้อมูล…</div>;}

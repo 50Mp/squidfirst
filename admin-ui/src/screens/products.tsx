@@ -51,7 +51,11 @@ export function GamePackages({game,compare=false}:{game:string;compare?:boolean}
  const wide=useWideWorkspace();
  const selected=games.data?.data.find(item=>item.id===game);
  const packages=(data?.data??[]).filter(product=>product.game_id===game);
+<<<<<<< HEAD
  if(!compare&&selected&&!Array.isArray(selected.required_fields))return <SourceGamePackages game={game}/>;
+=======
+ if(selected&&!Array.isArray(selected.required_fields))return <SourceGamePackages game={game} gameError={games.error} gameLoading={games.loading}/>;
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
  return <>
   <PageHeader back={packageListPath('',compare)} title={compare?costComparisonTitle:'แพ็กเกจขาย'} subtitle={selected?.name}>
    {!compare&&<button className="primary" disabled={!selected||!data||loading||!!error||!!games.error} onClick={()=>navigate(packageEditorPath(game))}>เพิ่มแพ็กเกจ</button>}
@@ -59,22 +63,30 @@ export function GamePackages({game,compare=false}:{game:string;compare?:boolean}
   {selected&&<div className="package-selected-game" aria-label={'เกม '+selected.name}><GameMark gameId={game} large/></div>}
   <ReadNotice error={error} cached={!!data}/>
   <ReadNotice error={games.error} cached={!!games.data}/>
+<<<<<<< HEAD
   {(games.loading&&!games.data)||(loading&&!data)?<Loading/>:games.data&&!selected?<Empty title="ไม่พบเกมนี้"/>:selected&&packages.length>0&&<PackageList packages={packages} game={game} compare={compare} gameTitle={selected.name} zones={selected.zones} wide={wide} readOnly={loading||!!error||!!games.error}/>}
+=======
+  {(games.loading&&!games.data)||(loading&&!data)?<Loading/>:games.data&&!selected?<Empty title="ไม่พบเกมนี้"/>:selected&&packages.length>0&&(wide?<Panel>
+   {packages.map(p=><button className="product-row" key={p.id} onClick={()=>navigate(packageEditorPath(game,p.id))}><span className="package-title"><PackageIcon game={game} name={p.name}/><span><strong>{p.name}</strong><small>{p.zone.toUpperCase()} · {p.published?'เผยแพร่':'ฉบับร่าง'}</small></span></span><span><b>{dollars(p.preview.details?.price_usd)}</b><small>{p.preview.available?'พร้อมขาย':'ยังขายไม่ได้'}</small></span></button>)}
+  </Panel>:<MobileProducts packages={packages} game={game} zones={selected.zones}/>)}
+  {selected&&data&&!packages.length&&!loading&&!games.loading&&!error&&!games.error&&<Panel><Empty title="ยังไม่มีแพ็กเกจขายในเกมนี้" text="เพิ่มแพ็กเกจและจับคู่กับร้านต้นทางก่อนเปิดขาย"/></Panel>}
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
  </>;
 }
 
-function SourceGamePackages({game}:{game:string}){
+function SourceGamePackages({game,gameError,gameLoading}:{game:string;gameError:string;gameLoading:boolean}){
  const {data,error,loading}=useResource<{data:Row[]}>('/catalog?'+new URLSearchParams({game_id:game}));
  const offers=data?.data.filter(offer=>offer.game_id===game)??[];
  return <>
   <PageHeader back={catalogPath} title="แพ็กเกจต้นทาง"/>
+  <ReadNotice error={gameError} cached/>
   <ReadNotice error={error} cached={!!data}/>
-  {loading&&!data?<Loading/>:offers.length>0&&<Panel>
+  {(loading&&!data)||(gameLoading&&!offers.length)?<Loading/>:offers.length>0?<Panel>
    {offers.map(offer=><div className="product-row" key={offer.id}>
     <span className="package-title"><PackageIcon game={game} name={offer.name}/><span><strong>{offer.name}</strong><small>{offer.source_id}{offer.zone!=='unspecified'?' · '+offer.zone.toUpperCase():''}</small></span></span>
     <b>{Number(offer.price).toLocaleString('en-US')} LAK</b>
    </div>)}
-  </Panel>}
+  </Panel>:data&&!loading&&!error&&!gameLoading&&!gameError?<Panel><Empty title="ยังไม่มีแพ็กเกจต้นทาง" text="ยังไม่มีข้อมูลแพ็กเกจของเกมนี้ที่เก็บไว้ในระบบ"/></Panel>:null}
  </>;
 }
 

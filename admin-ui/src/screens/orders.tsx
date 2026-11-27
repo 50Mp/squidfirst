@@ -10,7 +10,29 @@ import { OrderActions } from "../components/order-actions";
 import {SlipIssueSheet,slipIssueLabel,type SlipIssueDraft} from '../components/slip-issue-sheet';
 import {Search,AlertCircle,Check,CircleX,Clock3,LoaderCircle,RefreshCw,SquareCheck,UserCheck,Zap,SlidersHorizontal,ExternalLink,CheckCircle2,ReceiptText,X,CalendarDays} from 'lucide-react';
 import {
+<<<<<<< HEAD
   ApiError,
+=======
+  Search,
+  AlertCircle,
+  Check,
+  Copy,
+  CircleX,
+  Clock3,
+  LoaderCircle,
+  RefreshCw,
+  SquareCheck,
+  UserCheck,
+  Zap,
+  SlidersHorizontal,
+  ExternalLink,
+  MessageSquare,
+  CheckCircle2,
+  ReceiptText,
+  Send,
+} from "lucide-react";
+import {
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
   api,
   useResource,
   navigate,
@@ -416,6 +438,7 @@ export function OrderDetail({
   }}/>;
   return (
     <div className="stitch-order-detail">
+<<<<<<< HEAD
       {desktop?<header className="order-inspector-header">
         <div><h1><span className="sr-only">รายละเอียดออเดอร์ </span>#{shortId(id)}</h1><Status value={o.status}/></div>
         <button className="quiet icon-button" aria-label="ย้อนกลับ" title="ปิดรายละเอียดออเดอร์" onClick={()=>navigate(back)}><X size={19}/></button>
@@ -427,6 +450,29 @@ export function OrderDetail({
       </>}
       {error?<ReadNotice error={error} cached/>:<ErrorBox message={slipOpen?'':actionError}/>}
       {desktop&&<section className="order-inspector-action"><h2>การดำเนินการ</h2>{orderActions}</section>}
+=======
+      <PageHeader
+        back={back}
+        title="รายละเอียดออเดอร์"
+      />
+      <div className="stitch-detail-card">
+        <div className="stitch-detail-header-row">
+          <div className="stitch-detail-id">#SQ-{shortId(id)}</div>
+          <Status value={o.status}/>
+        </div>
+        <div className="stitch-detail-time">{dateTime(o.created_at)}</div>
+        <div className="stitch-detail-channel">
+          <span style={{display:'flex',alignItems:'center',gap:6}}>
+            <Send size={14} style={{color:'var(--sf-primary)'}}/>
+            <span>ช่องทาง: <strong>Telegram Mini App</strong> (Storefront Web)</span>
+          </span>
+          <span className="store-badge primary">v2.4 API</span>
+        </div>
+      </div>
+      <div className="stitch-detail-amount"><span>ยอดรวมที่ต้องชำระ</span><strong>{dollars(d.price_usd)} <small>USD</small></strong></div>
+      <ErrorBox message={error || actionError} />
+      {desktop&&orderActions}
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
       {d.mock && (
         <div className="notice">
           🧪 ออเดอร์ทดสอบ ไม่ต้องโอนเงินจริงหรือเติมเกมจริง
@@ -434,8 +480,26 @@ export function OrderDetail({
       )}
       <div className="detail-grid">
         <div>
+<<<<<<< HEAD
           <h2 className="stitch-detail-section-title">ข้อมูลสำหรับเติมเกม</h2>
           <Panel>
+=======
+          <Panel title="ข้อมูลการเติมเกม">
+            {o.customer?.username && (
+              <div className="stitch-detail-customer-header">
+                <div className="stitch-detail-customer-info">
+                  <div className="stitch-detail-customer-avatar">
+                    {o.customer.username.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <strong style={{fontSize: 15, display: 'block'}}>{o.customer.username}</strong>
+                    <span style={{fontSize: 12, color: 'var(--sf-text-secondary)'}}>ลูกค้าประจำ</span>
+                  </div>
+                </div>
+                <span className="store-badge success">VIP Member</span>
+              </div>
+            )}
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
             <div className="detail-game">
               <GameMark gameId={d.game_id} />
               <div>
@@ -488,10 +552,29 @@ export function OrderDetail({
           </Panel>
         </div>
         <div>
+<<<<<<< HEAD
           <h2 className="stitch-detail-section-title">ต้นทุนและผลกำไร</h2>
           <Panel>
             <dl className="facts">
               <div><dt>ราคาขาย</dt><dd>{dollars(d.price_usd)} USD</dd></div>
+=======
+          <Panel title="ข้อมูลต้นทุน · เฉพาะแอดมิน">
+            <div className="stitch-financial-grid">
+              <div>
+                <span>ยอดชำระ</span>
+                <strong>{dollars(d.price_usd)}</strong>
+              </div>
+              <div>
+                <span>ต้นทุนส่ง</span>
+                <strong>{Number.isFinite(i.cost_lak) ? Number(i.cost_lak).toLocaleString("en-US") + " LAK" : "—"}</strong>
+              </div>
+              <div>
+                <span>มาร์จิ้น</span>
+                <strong className="profit">{i.markup_bps !== undefined ? "+" + (i.markup_bps / 100) + "%" : "—"}</strong>
+              </div>
+            </div>
+            <dl className="facts" style={{marginTop: 12}}>
+>>>>>>> 6d236ea247287af2d4678031d3061f7c3b9fd22d
               <div>
                 <dt>ต้นทุนซัพพลายเออร์</dt>
                 <dd>
