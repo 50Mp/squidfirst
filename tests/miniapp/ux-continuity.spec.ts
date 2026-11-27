@@ -140,7 +140,7 @@ test('loading earlier chat messages keeps the visible message anchored',async({p
  await open(page);
  const {data:customers}=await (await page.request.get('/admin/v1/customers')).json();
  const customer=customers.find((row:{username:string})=>row.username==='player1');
- const records=(start:number)=>Array.from({length:8},(_,index)=>({
+ const records=(start:number,length=8)=>Array.from({length},(_,index)=>({
   id:String(start+index),sender:'customer',visibility:'public',text:'ข้อความ '+(start+index),created_at:'2025-11-27T10:00:00Z',
  }));
  let release!:()=>void,requests=0;
@@ -152,7 +152,7 @@ test('loading earlier chat messages keeps the visible message anchored',async({p
    await hold;
    await route.fulfill({json:{messages:records(1),has_older:false,next_cursor:'8'}});
   }else{
-   await route.fulfill({json:{messages:query.has('after')?[]:records(9),has_older:true,next_cursor:'16'}});
+   await route.fulfill({json:{messages:query.has('after')?[]:records(9,16),has_older:true,next_cursor:'24'}});
   }
  });
  await page.goto('/admin-app/#/chats/'+customer.id);
